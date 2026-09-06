@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineMethod, type RpcMethod } from '../core'
+import { changeSbxLifecycle } from '../../../sbx/sbx-lifecycle'
 import { SbxClient } from '../../../sbx/sbx-client'
 import { resolveSbxTerminalLaunch } from '../../../sbx/sbx-terminal'
 import { listSbxInventory } from '../../../sbx/sbx-inventory'
@@ -46,16 +47,12 @@ export const SBX_METHODS: RpcMethod[] = [
   }),
   defineMethod({
     name: 'sbx.lifecycle',
-    params: target.extend({ action: z.enum(['start', 'stop', 'remove']) }),
+    params: target.extend({
+      sandboxId: z.string().min(1),
+      action: z.enum(['start', 'stop', 'remove'])
+    }),
     handler: async (p) => {
-      const client = new SbxClient(p.connectionId)
-      const args =
-        p.action === 'start'
-          ? ['run', '--detached', '--name', p.name]
-          : p.action === 'stop'
-            ? ['stop', p.name]
-            : ['rm', '--force', p.name]
-      await client.run(args, 300_000)
+      await changeSbxLifecycle(p)
       return listSbxInventory(p.connectionId)
     }
   }),

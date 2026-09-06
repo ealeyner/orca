@@ -79,3 +79,20 @@ Host hooks and host-local transcript discovery are not bridged into the guest.
 This integration does not offer administrator-enforced restrictions on the Orca
 user themselves: sandbox creation defaults can be changed by that user. Use Docker
 governance profiles for centrally enforced policy.
+
+### Native provider work still required
+
+Structured providers need a durable sandbox execution namespace, not only an
+`sbx exec` command prefix. Their current owner probes observe host PIDs, and their
+resume resolvers read host account roots. Before enabling native structured chat:
+
+- Pin the immutable sandbox ID and guest account root in each durable session.
+- Resolve provider handles and transcript proofs inside that pinned sandbox.
+- Carry bidirectional provider protocol traffic without PTY or startup banners.
+- Distinguish a lost sbx transport from proven guest process exit during close,
+  crash recovery, and native/TUI handoff. `sbx-lifecycle.ts` supplies identity checks
+  and post-operation sandbox state verification for that boundary.
+- Reuse `sbx-agent-sandbox.ts` for provisioning rather than creating a separate
+  sandbox ownership scheme for native sessions.
+- Exercise approvals, cancellation, resume, and crash recovery through native UI
+  tests and live guest processes before removing the host-provider launch guard.

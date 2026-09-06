@@ -1,9 +1,9 @@
-import { chmodSync, copyFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { chmodSync, copyFileSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test, expect } from './helpers/orca-app'
 import { waitForSessionReady, waitForActiveWorktree, ensureTerminalVisible } from './helpers/store'
-import { getTerminalContent } from './helpers/terminal'
+import { getTerminalContent, focusActiveTerminalInput } from './helpers/terminal'
 
 const fixtureDir = mkdtempSync(join(tmpdir(), 'orca-sbx-fixture-'))
 const binary = join(fixtureDir, 'sbx')
@@ -22,17 +22,28 @@ test('agent launch provisions a sandbox through native IPC and surfaces it in th
   await waitForActiveWorktree(orcaPage)
   await ensureTerminalVisible(orcaPage)
   await orcaPage.evaluate(async () => {
-    const settings = await window.api.settings.set({
+    await window.__store!.getState().updateSettings({
       sbx: { enabled: true },
       agentDefaultArgs: { claude: '' }
     })
-    window.__store!.setState({ settings })
   })
+  await ensureTerminalVisible(orcaPage)
   await orcaPage.getByRole('button', { name: 'New tab' }).click({ force: true })
   await orcaPage
     .getByRole('menuitem', { name: /^Claude(?:\s|$)/i })
     .first()
     .click({ force: true })
+  await expect
+    .poll(() => {
+      try {
+        return JSON.parse(readFileSync(join(fixtureDir, 'state.json'), 'utf8'))[0]?.status
+      } catch {
+        return null
+      }
+    })
+    .toBe('running')
+  await focusActiveTerminalInput(orcaPage)
+  await orcaPage.keyboard.press('Enter')
   await expect
     .poll(
       async () => (await getTerminalContent(orcaPage)).includes('SBX_AGENT_READY orca-claude-'),
@@ -66,6 +77,17 @@ test('agent launch provisions a sandbox through native IPC and surfaces it in th
   await pane.getByRole('button', { name: 'Remove…', exact: true }).click()
   const confirmation = orcaPage.getByRole('dialog')
   await expect(confirmation).toBeVisible()
+  const stateFile = join(fixtureDir, 'state.json')
+  const rows = JSON.parse(readFileSync(stateFile, 'utf8'))
+  rows[0].id = 'replacement-id'
+  writeFileSync(stateFile, JSON.stringify(rows))
+  await expect(orcaPage.getByText('claude · Existing sandbox', { exact: true })).toBeVisible({
+    timeout: 15_000
+  })
   await confirmation.getByRole('button', { name: 'Remove sandbox', exact: true }).click()
-  await expect(pane.getByText('claude · Orca agent sandbox')).not.toBeVisible()
+  await expect(pane.getByRole('alert')).toContainText('Sandbox identity changed')
+  expect(JSON.parse(readFileSync(stateFile, 'utf8'))).toHaveLength(1)
+  await pane.getByRole('button', { name: 'Remove…', exact: true }).click()
+  await confirmation.getByRole('button', { name: 'Remove sandbox', exact: true }).click()
+  await expect(pane.getByText('claude · Existing sandbox')).not.toBeVisible()
 })

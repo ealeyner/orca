@@ -55,7 +55,10 @@ describe('sandbox control RPC boundary', () => {
     expect(mocks.run).not.toHaveBeenCalled()
   })
   it('removes exactly one selected sandbox, never all', async () => {
-    expect(await call('sbx.lifecycle', { name: 'one', action: 'remove' })).toMatchObject({
+    mocks.list.mockResolvedValueOnce([{ name: 'one', id: 'owned', status: 'running' }])
+    expect(
+      await call('sbx.lifecycle', { name: 'one', sandboxId: 'owned', action: 'remove' })
+    ).toMatchObject({
       ok: true
     })
     expect(mocks.run).toHaveBeenCalledWith(['rm', '--force', 'one'], 300_000)

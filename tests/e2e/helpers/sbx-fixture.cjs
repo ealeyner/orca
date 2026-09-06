@@ -26,7 +26,7 @@ if (args[0] === 'ls') {
   console.log(`SBX_AGENT_READY ${name}`)
   if (!args.includes('--detached')) {
     process.stdin.resume()
-    process.stdin.on('data', () => {})
+    process.stdin.on('data', () => console.log(`SBX_AGENT_READY ${name}`))
   }
 } else if (args[0] === 'exec') {
   console.log('SBX_SHELL_READY')

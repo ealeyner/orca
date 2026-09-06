@@ -39,7 +39,7 @@ export function SbxPane({
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
   const [unverifiable, setUnverifiable] = useState(false)
-  const [remove, setRemove] = useState<string | null>(null)
+  const [remove, setRemove] = useState<{ name: string; id: string } | null>(null)
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [workspace, setWorkspace] = useState('')
@@ -85,11 +85,17 @@ export function SbxPane({
       clearInterval(timer)
     }
   }, [refresh, invalidate])
-  const act = async (action: 'start' | 'stop' | 'remove', sandbox: string) => {
+  const act = async (action: 'start' | 'stop' | 'remove', sandbox: string, sandboxId: string) => {
     setBusy(`${action}:${sandbox}`)
     setError('')
     try {
-      setSandboxes(await call('sbx.lifecycle', { name: sandbox, action }))
+      setSandboxes(
+        await call('sbx.lifecycle', {
+          name: sandbox,
+          sandboxId,
+          action
+        })
+      )
       if (action === 'remove') {
         setSelected(null)
       }
@@ -278,7 +284,7 @@ export function SbxPane({
                   size="xs"
                   variant="outline"
                   disabled={Boolean(busy)}
-                  onClick={() => void act(s.status === 'running' ? 'stop' : 'start', s.name)}
+                  onClick={() => void act(s.status === 'running' ? 'stop' : 'start', s.name, s.id)}
                 >
                   {s.status === 'running' ? 'Stop' : 'Start'}
                 </Button>
@@ -294,7 +300,7 @@ export function SbxPane({
                   size="xs"
                   variant="ghost"
                   disabled={Boolean(busy)}
-                  onClick={() => setRemove(s.name)}
+                  onClick={() => setRemove({ name: s.name, id: s.id })}
                 >
                   Remove…
                 </Button>
@@ -316,7 +322,7 @@ export function SbxPane({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove {remove}?</DialogTitle>
+            <DialogTitle>Remove {remove?.name}?</DialogTitle>
             <DialogDescription>
               This stops the sandbox and permanently deletes its internal files and state. Mounted
               workspace files remain on the host.
@@ -330,7 +336,7 @@ export function SbxPane({
               variant="destructive"
               onClick={() => {
                 if (remove) {
-                  void act('remove', remove)
+                  void act('remove', remove.name, remove.id)
                 }
                 setRemove(null)
               }}

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import type { PtySpawnOptions } from '../providers/types'
 import { SBX_AGENTS, DEFAULT_SBX_POLICY, SbxLaunchPolicySchema } from '../../shared/sbx-types'
@@ -9,14 +9,8 @@ import {
 } from '../../shared/tui-agent-startup-shell'
 import { TUI_AGENT_CONFIG } from '../../shared/tui-agent-config'
 import { getRegisteredSshState } from '../ssh/ssh-target-registry'
-import { SbxClient } from './sbx-client'
-import { readSbxBinding, saveSbxBinding } from './sbx-bindings'
-
-const pending = new Map<string, Promise<void>>()
-
-export function sandboxNameForPane(agent: string, identity: string): string {
-  return `orca-${agent}-${createHash('sha256').update(identity).digest('hex').slice(0, 20)}`
-}
+import { ensureSbxAgentSandbox, sandboxNameForPane } from './sbx-agent-sandbox'
+export { sandboxNameForPane } from './sbx-agent-sandbox'
 
 export async function prepareSbxAgentLaunch(
   options: PtySpawnOptions,
@@ -68,48 +62,15 @@ export async function prepareSbxAgentLaunch(
     agent,
     `${options.worktreeId ?? options.cwd}:${options.paneKey ?? options.tabId ?? options.sessionId ?? randomUUID()}`
   )
-  const client = new SbxClient(connectionId ?? undefined)
-  const key = `${connectionId ?? 'local'}:${name}`
-  let provisioning = pending.get(key)
-  if (!provisioning) {
-    provisioning = (async () => {
-      const existing = (await client.list()).find((s) => s.name === name)
-      if (existing) {
-        const binding = await readSbxBinding(name, connectionId)
-        if (!binding || binding.sandboxId !== existing.id) {
-          throw new Error(
-            'Sandbox ownership could not be verified. Inspect this sandbox before starting a new agent pane.'
-          )
-        }
-        if (existing.agent !== sandboxAgent || !existing.workspaces.includes(options.cwd!)) {
-          throw new Error('Sandbox identity conflicts with this agent workspace.')
-        }
-        return
-      }
-      const created = await client.create({
-        ...policy,
-        name,
-        agent: sandboxAgent as (typeof SBX_AGENTS)[number],
-        workspace: options.cwd!
-      })
-      await saveSbxBinding({
-        name,
-        sandboxId: created.id,
-        agent,
-        workspace: options.cwd!,
-        paneIdentity: options.paneKey ?? options.tabId ?? options.sessionId ?? name,
-        connectionId: connectionId ?? null
-      })
-    })()
-    pending.set(key, provisioning)
-  }
-  try {
-    await provisioning
-  } finally {
-    if (pending.get(key) === provisioning) {
-      pending.delete(key)
-    }
-  }
+  await ensureSbxAgentSandbox({
+    name,
+    agent,
+    sandboxAgent: sandboxAgent as (typeof SBX_AGENTS)[number],
+    workspace: options.cwd,
+    paneIdentity: options.paneKey ?? options.tabId ?? options.sessionId ?? name,
+    policy,
+    connectionId
+  })
   options.command = buildShellCommandFromArgv(
     nativeAgent
       ? [
