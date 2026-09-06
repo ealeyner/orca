@@ -46,3 +46,12 @@ export async function changeSbxLifecycle(input: {
     throw new Error('Sandbox startup is unverifiable. Refresh before retrying.')
   }
 }
+
+/** Absence of the immutable ID proves exit even if its old name has been reused. */
+export async function stopSbxExecution(input: { name: string; sandboxId: string }): Promise<void> {
+  const remaining = await new SbxClient().list()
+  if (!remaining.some((sandbox) => sandbox.id === input.sandboxId)) {
+    return
+  }
+  await changeSbxLifecycle({ ...input, action: 'stop' })
+}

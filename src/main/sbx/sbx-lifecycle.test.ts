@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { changeSbxLifecycle } from './sbx-lifecycle'
+import { changeSbxLifecycle, stopSbxExecution } from './sbx-lifecycle'
 const mocks = vi.hoisted(() => ({ list: vi.fn(), run: vi.fn() }))
 vi.mock('./sbx-client', () => ({
   SbxClient: class {
@@ -51,5 +51,10 @@ describe('sandbox lifecycle evidence', () => {
     await expect(
       changeSbxLifecycle({ ...target, action: 'stop', connectionId: 'remote' })
     ).rejects.toThrow('unverifiable')
+  })
+  it('proves a removed execution stopped without touching a same-name replacement', async () => {
+    mocks.list.mockResolvedValue([{ ...sandbox, id: 'replacement' }])
+    await stopSbxExecution(target)
+    expect(mocks.run).not.toHaveBeenCalled()
   })
 })

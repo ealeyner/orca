@@ -1,9 +1,7 @@
-import { EventEmitter } from 'node:events'
+import { stubChild, answerInitialize } from './codex-app-server-test-child'
 import { realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { PassThrough } from 'node:stream'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { spawnProcess } from '../../shared/child-process/run-process'
 import {
   CODEX_APP_SERVER_MAX_RECORD_BYTES,
   CodexAppServerFrameSizeError,
@@ -71,49 +69,6 @@ async function openFakeServer(
     { command: process.execPath, args: ['-e', FAKE_APP_SERVER], env, envToDelete, cwd },
     handlers
   )
-}
-
-type StubChild = EventEmitter & {
-  stdout: PassThrough
-  stderr: PassThrough
-  stdin: PassThrough
-  pid: number
-  kill: ReturnType<typeof vi.fn>
-}
-
-/** Full control over framing and death, which a real child cannot give. */
-function stubChild(options: { exitOnStdinEnd?: boolean } = {}): {
-  child: StubChild
-  spawnImpl: typeof spawnProcess
-  written: Record<string, unknown>[]
-} {
-  const child = new EventEmitter() as StubChild
-  child.stdout = new PassThrough()
-  child.stderr = new PassThrough()
-  child.stdin = new PassThrough()
-  // Keep the synthetic pid outside any real process table so teardown never
-  // mistakes an unrelated process for this stub.
-  child.pid = 9_999_999
-  child.kill = vi.fn()
-  const written: Record<string, unknown>[] = []
-  child.stdin.on('data', (chunk: Buffer) => {
-    for (const line of chunk.toString('utf8').split('\n')) {
-      if (line.trim()) {
-        written.push(JSON.parse(line) as Record<string, unknown>)
-      }
-    }
-  })
-  if (options.exitOnStdinEnd !== false) {
-    child.stdin.on('finish', () => child.emit('exit', 0, null))
-  }
-  return { child, spawnImpl: (() => child) as unknown as typeof spawnProcess, written }
-}
-
-/** Answers the handshake so `openCodexAppServerConnection` can resolve. */
-function answerInitialize(child: StubChild): void {
-  child.stdin.once('data', () => {
-    child.stdout.write(`${JSON.stringify({ id: 1, result: {} })}\n`)
-  })
 }
 
 /** Stream writes land a tick later, so the stderr tail is only complete here. */
@@ -860,5 +815,63 @@ describe('openCodexAppServerConnection', () => {
 
     expect((await inFlight).message).toContain('EPIPE')
     expect(exits).toHaveLength(0)
+  })
+  it('does not release a guest execution lease on transport exit alone', async () => {
+    const { child, spawnImpl } = stubChild()
+    answerInitialize(child)
+    const confirmExecutionExit = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    const onExit = vi.fn()
+    const connection = await openCodexAppServerConnection(
+      { command: 'sbx', args: [], confirmExecutionExit },
+      { onExit },
+      spawnImpl
+    )
+    expect(await connection.close()).toBe(false)
+    expect(onExit).not.toHaveBeenCalled()
+    expect(await connection.close()).toBe(true)
+    expect(confirmExecutionExit).toHaveBeenCalledTimes(2)
+  })
+
+  it('delays unexpected-exit notification until guest exit is proven', async () => {
+    const { child, spawnImpl } = stubChild()
+    answerInitialize(child)
+    let prove!: (value: boolean) => void
+    const confirmation = new Promise<boolean>((resolve) => {
+      prove = resolve
+    })
+    const onExit = vi.fn()
+    const connection = await openCodexAppServerConnection(
+      { command: 'sbx', args: [], confirmExecutionExit: () => confirmation },
+      { onExit },
+      spawnImpl
+    )
+    child.emit('exit', 1, null)
+    await flushStreams()
+    expect(onExit).not.toHaveBeenCalled()
+    prove(true)
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1))
+    expect(await connection.close()).toBe(true)
+  })
+
+  it('retains a failed guest handshake until shutdown can be proven', async () => {
+    const { child, spawnImpl } = stubChild()
+    child.stdin.once('data', () =>
+      child.stdout.write(`${JSON.stringify({ id: 1, error: { code: -1, message: 'refused' } })}\n`)
+    )
+    const confirmExecutionExit = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('host unavailable'))
+      .mockResolvedValueOnce(true)
+    const error = await rejection(
+      openCodexAppServerConnection(
+        { command: 'sbx', args: [], confirmExecutionExit },
+        {},
+        spawnImpl
+      )
+    )
+    expect(error.name).toBe('CodexAppServerHandshakeExitUnprovenError')
+    const retained = (error as Error & { connection: CodexAppServerConnection }).connection
+    expect(retained.pid).toBe(child.pid)
+    expect(await retained.close()).toBe(true)
   })
 })

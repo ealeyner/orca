@@ -1,3 +1,4 @@
+import { createCodexExecutionExitProof } from './codex-execution-exit-proof'
 import { spawnProcess } from '../../shared/child-process/run-process'
 import { RetryableProcessExitProof } from '../../shared/child-process/retryable-process-exit-proof'
 import { createProviderSpawnSpec } from './codex-app-server-posix-supervisor'
@@ -42,6 +43,8 @@ export type CodexAppServerLaunch = {
   env?: Record<string, string>
   /** Keys stripped after the overlay, matching `CodexAppServerInvocation`. */
   envToDelete?: readonly string[]
+  /** Guest execution must be proven stopped independently of the local transport process. */
+  confirmExecutionExit?: () => Promise<boolean>
 }
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
@@ -81,6 +84,7 @@ export async function openCodexAppServerConnection(
   let closing = false
   let exitReported = false
   const exitProof = new RetryableProcessExitProof()
+  const proveExecutionExit = createCodexExecutionExitProof(launch.confirmExecutionExit)
   /** First terminal cause, or null while the transport is still usable. Set once:
    *  a child that dies reaches us through several listeners, and the specific
    *  first cause is the one worth reporting. */
@@ -128,8 +132,22 @@ export async function openCodexAppServerConnection(
     // callers do not hang, but recovery must not treat that as a child exit
     // until the execution host has observed `exit`/`close`.
     if (exitObserved && !closing && !exitReported) {
-      exitReported = true
-      handlers.onExit?.(terminalError)
+      const report = () => {
+        if (closing || exitReported) {
+          return
+        }
+        exitReported = true
+        handlers.onExit?.(terminalError!)
+      }
+      if (launch.confirmExecutionExit) {
+        void proveExecutionExit().then((proven) => {
+          if (proven) {
+            report()
+          }
+        })
+      } else {
+        report()
+      }
     }
   }
 
@@ -241,7 +259,7 @@ export async function openCodexAppServerConnection(
   }
 
   function close(): Promise<boolean> {
-    if (exitObserved) {
+    if (exitObserved && !launch.confirmExecutionExit) {
       return Promise.resolve(true)
     }
     closing = true
@@ -263,7 +281,7 @@ export async function openCodexAppServerConnection(
         }
       }
       dispatcher.failPending(new Error('codex app-server connection closed'))
-      return exitObserved
+      return exitObserved && (await proveExecutionExit())
     })
   }
 

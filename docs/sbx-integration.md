@@ -88,7 +88,8 @@ resume resolvers read host account roots. Before enabling native structured chat
 
 - Pin the immutable sandbox ID and guest account root in each durable session.
 - Resolve provider handles and transcript proofs inside that pinned sandbox.
-- Carry bidirectional provider protocol traffic without PTY or startup banners.
+- Wire the verified Codex stdio connection into durable session acquisition; add the
+  equivalent Claude SDK connection without PTY or startup banners.
 - Distinguish a lost sbx transport from proven guest process exit during close,
   crash recovery, and native/TUI handoff. `sbx-lifecycle.ts` supplies identity checks
   and post-operation sandbox state verification for that boundary.
@@ -96,3 +97,16 @@ resume resolvers read host account roots. Before enabling native structured chat
   sandbox ownership scheme for native sessions.
 - Exercise approvals, cancellation, resume, and crash recovery through native UI
   tests and live guest processes before removing the host-provider launch guard.
+
+
+The Codex guest transport is now implemented in `sbx-codex-connection.ts` and
+verified against a real Docker sandbox: initialization, model discovery, and
+confirmed guest shutdown passed. Its exit callback cannot release ownership on
+local transport exit alone; failed handshake cleanup retains a retryable connection.
+The adapter is not yet connected to native session acquisition, because the durable
+record and restart-time owner probes must first understand sandbox identity.
+
+To repeat the opt-in transport check, create and stop a disposable Codex sandbox,
+then set `ORCA_SBX_NATIVE_SMOKE=1` and `ORCA_SBX_NATIVE_SMOKE_NAME` to its name while
+running `src/main/sbx/sbx-codex-connection.live.test.ts` with Vitest. The test stops
+but does not remove that sandbox. Normal test runs skip the live check.
