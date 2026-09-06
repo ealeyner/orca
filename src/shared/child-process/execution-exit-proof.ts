@@ -1,9 +1,7 @@
-import { RetryableProcessExitProof } from '../../shared/child-process/retryable-process-exit-proof'
+import { RetryableProcessExitProof } from './retryable-process-exit-proof'
 
 /** A transport child can exit while the provider it controls remains alive. */
-export function createCodexExecutionExitProof(
-  confirm?: () => Promise<boolean>
-): () => Promise<boolean> {
+export function createExecutionExitProof(confirm?: () => Promise<boolean>): () => Promise<boolean> {
   const proof = new RetryableProcessExitProof()
   return () =>
     proof.run(async () => {

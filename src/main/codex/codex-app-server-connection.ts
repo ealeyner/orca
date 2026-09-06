@@ -1,4 +1,4 @@
-import { createCodexExecutionExitProof } from './codex-execution-exit-proof'
+import { createExecutionExitProof } from '../../shared/child-process/execution-exit-proof'
 import { spawnProcess } from '../../shared/child-process/run-process'
 import { RetryableProcessExitProof } from '../../shared/child-process/retryable-process-exit-proof'
 import { createProviderSpawnSpec } from './codex-app-server-posix-supervisor'
@@ -84,7 +84,7 @@ export async function openCodexAppServerConnection(
   let closing = false
   let exitReported = false
   const exitProof = new RetryableProcessExitProof()
-  const proveExecutionExit = createCodexExecutionExitProof(launch.confirmExecutionExit)
+  const proveExecutionExit = createExecutionExitProof(launch.confirmExecutionExit)
   /** First terminal cause, or null while the transport is still usable. Set once:
    *  a child that dies reaches us through several listeners, and the specific
    *  first cause is the one worth reporting. */

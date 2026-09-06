@@ -88,8 +88,8 @@ resume resolvers read host account roots. Before enabling native structured chat
 
 - Pin the immutable sandbox ID and guest account root in each durable session.
 - Resolve provider handles and transcript proofs inside that pinned sandbox.
-- Wire the verified Codex stdio connection into durable session acquisition; add the
-  equivalent Claude SDK connection without PTY or startup banners.
+- Wire the verified Codex and Claude guest connections into durable session
+  acquisition without PTY or startup banners.
 - Distinguish a lost sbx transport from proven guest process exit during close,
   crash recovery, and native/TUI handoff. `sbx-lifecycle.ts` supplies identity checks
   and post-operation sandbox state verification for that boundary.
@@ -110,3 +110,17 @@ To repeat the opt-in transport check, create and stop a disposable Codex sandbox
 then set `ORCA_SBX_NATIVE_SMOKE=1` and `ORCA_SBX_NATIVE_SMOKE_NAME` to its name while
 running `src/main/sbx/sbx-codex-connection.live.test.ts` with Vitest. The test stops
 but does not remove that sandbox. Normal test runs skip the live check.
+
+
+The Claude SDK guest transport is implemented in `sbx-claude-connection.ts` and
+verified with a live sandbox through SDK initialization, model discovery, and
+shutdown. It preserves SDK permission callbacks, does not hold the host-account
+refresh gate, and retains retryable cleanup after partially spawned SDK failures.
+Both providers share generation-scoped sandbox reservations so delayed cleanup
+cannot stop or release a later connection. The guest-exit proof is shared by the
+native provider connections; local process exit alone never proves guest exit.
+
+For the Claude opt-in check, use a stopped disposable Claude sandbox and set
+`ORCA_SBX_NATIVE_SMOKE=1` and `ORCA_SBX_CLAUDE_SMOKE_NAME`, then run
+`src/main/sbx/sbx-claude-connection.live.test.ts`. As with the Codex check, the test
+stops the sandbox and leaves explicit removal to the caller.

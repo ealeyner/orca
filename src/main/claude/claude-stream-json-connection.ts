@@ -1,3 +1,4 @@
+import { createExecutionExitProof } from '../../shared/child-process/execution-exit-proof'
 import { randomUUID } from 'node:crypto'
 import type * as ClaudeAgentSdk from '@anthropic-ai/claude-agent-sdk'
 import type { CanUseTool, OnUserDialog, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
@@ -41,6 +42,9 @@ export type ClaudeStreamJsonLaunch = {
   options: ClaudeStructuredSdkOptions
   cwd: string
   env?: Record<string, string>
+  confirmExecutionExit?: () => Promise<boolean>
+  /** Guest credentials do not participate in the host account refresh gate. */
+  usesHostCredentials?: boolean
 }
 
 export type ClaudeStreamJsonConnectionHandlers = {
@@ -138,6 +142,11 @@ export async function openClaudeStreamJsonConnection(
   let faultReported = false
   let exitReported = false
   let closePromise: Promise<boolean> | null = null
+  let executionExited = !launch.confirmExecutionExit
+  const proveExecutionExit = createExecutionExitProof(async () => {
+    executionExited = launch.confirmExecutionExit ? await launch.confirmExecutionExit() : true
+    return executionExited
+  })
   // One reaper per child: every close attempt and error-path reap shares its proof.
   const rootSettled = (): boolean => exited || processless
   const tree = createClaudeChildTreeReaper(child, { exited: rootSettled })
@@ -184,8 +193,22 @@ export async function openClaudeStreamJsonConnection(
       handlers.onFault?.(terminalError)
     }
     if (!closing && exited && !exitReported) {
-      exitReported = true
-      handlers.onExit?.(terminalError)
+      const report = () => {
+        if (closing || exitReported) {
+          return
+        }
+        exitReported = true
+        handlers.onExit?.(terminalError!)
+      }
+      if (launch.confirmExecutionExit) {
+        void proveExecutionExit().then((proven) => {
+          if (proven) {
+            report()
+          }
+        })
+      } else {
+        report()
+      }
     }
   }
 
@@ -232,7 +255,9 @@ export async function openClaudeStreamJsonConnection(
   // 'close' are attached makes that unreachable — any later throw still leaves a
   // listener that releases. Nothing between spawn and here can yield, so the child
   // cannot end before the gate is entered.
-  markClaudeStructuredChildSpawned(authGateKey)
+  if (launch.usesHostCredentials !== false) {
+    markClaudeStructuredChildSpawned(authGateKey)
+  }
 
   const send = (message: Record<string, unknown>): Promise<void> => {
     if (closing || exited || terminalError || child.stdin.destroyed || !child.stdin.writable) {
@@ -248,12 +273,13 @@ export async function openClaudeStreamJsonConnection(
       // immediately; a post-exit walk cannot recover descendants that reparented.
       await (tree.refresh?.() ?? tree.capture())
       inbox.end()
-      const proven = await proveClaudeChildExit({
+      const localExit = await proveClaudeChildExit({
         child,
         exitPromise,
         exited: rootSettled,
         tree
       })
+      const proven = localExit && (await proveExecutionExit())
       inbox.fail(new Error('claude stream-json connection closed'))
       if (!proven) {
         closePromise = null
@@ -274,7 +300,7 @@ export async function openClaudeStreamJsonConnection(
     get exitVerdict() {
       return {
         root: processless ? 'processless' : exited ? 'exited' : 'live',
-        tree: tree.treeVerdict
+        tree: !executionExited && tree.treeVerdict === 'exited' ? 'unverifiable' : tree.treeVerdict
       } as const
     },
     send,

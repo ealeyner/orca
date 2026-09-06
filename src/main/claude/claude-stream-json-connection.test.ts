@@ -766,4 +766,38 @@ describe('the managed-auth live gate', () => {
       ;(started as SpawnedProcess | null)?.kill('SIGKILL')
     }
   }, 30_000)
+  it('retains guest execution until its exit is independently proven', async () => {
+    const scenario = scriptScenario([HOLD_OPEN])
+    const confirmExecutionExit = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    const connection = await open({
+      ...launchFor(scenario),
+      confirmExecutionExit,
+      usesHostCredentials: false
+    })
+    await connection.initializationResult()
+    expect(hasLiveClaudePtys()).toBe(false)
+    expect(await connection.close()).toBe(false)
+    expect(connection.exitVerdict.tree).toBe('unverifiable')
+    expect(await connection.close()).toBe(true)
+    expect(connection.exitVerdict.tree).toBe('exited')
+  })
+
+  it('does not notify guest exit when only the transport has exited', async () => {
+    const scenario = scriptScenario([HOLD_OPEN])
+    let confirm!: (value: boolean) => void
+    const proof = new Promise<boolean>((resolve) => {
+      confirm = resolve
+    })
+    const onExit = vi.fn()
+    const connection = await open(
+      { ...launchFor(scenario), confirmExecutionExit: () => proof, usesHostCredentials: false },
+      { onExit }
+    )
+    await connection.initializationResult()
+    spawnedChildren.at(-1)!.kill('SIGTERM')
+    await vi.waitFor(() => expect(connection.closed).toBe(true))
+    expect(onExit).not.toHaveBeenCalled()
+    confirm(true)
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1))
+  })
 })
