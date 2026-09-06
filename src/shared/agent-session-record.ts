@@ -6,7 +6,19 @@
  * question of which process is currently allowed to write to it.
  */
 
-import type { ExecutionHostId } from './execution-host'
+import {
+  isAgentSessionExecutionLocation,
+  type AgentSessionExecutionLocation
+} from './agent-session-execution-location'
+export {
+  agentSessionScopeKey,
+  agentSessionExecutionLocationsEqual,
+  isAgentSessionExecutionLocation
+} from './agent-session-execution-location'
+export type {
+  AgentSessionExecutionLocation,
+  AgentSessionWorkspaceKind
+} from './agent-session-execution-location'
 import {
   isAgentSessionProviderHandleChain,
   type AgentSessionHandleProvider,
@@ -14,20 +26,13 @@ import {
 } from './agent-session-provider-handle'
 
 export const AGENT_SESSION_RECORD_SCHEMA_VERSION = 2 as const
+export const AGENT_SESSION_SANDBOX_RECORD_SCHEMA_VERSION = 3 as const
 
-export type AgentSessionWorkspaceKind = 'git-worktree' | 'folder'
-
-/**
- * Where the provider process actually runs. WSL is called out separately from the execution host
- * id because a WSL workspace is served by the local host but is a distinct filesystem, account
- * root, and process namespace — two sessions there must never collide with their native twins.
- */
-export type AgentSessionExecutionLocation = {
-  executionHostId: ExecutionHostId
-  /** Distro name when the provider runs inside WSL; null for native and remote hosts. */
-  wslDistro: string | null
-  workspaceId: string
-  workspaceKind: AgentSessionWorkspaceKind
+export function isAgentSessionRecordSchemaVersion(value: unknown): boolean {
+  return (
+    value === AGENT_SESSION_RECORD_SCHEMA_VERSION ||
+    value === AGENT_SESSION_SANDBOX_RECORD_SCHEMA_VERSION
+  )
 }
 
 /** Account root pinned at launch by the account selector, so a resume cannot drift to another login. */
@@ -117,7 +122,9 @@ export type AgentSessionLease = {
 }
 
 export type AgentSessionRecord = {
-  schemaVersion: typeof AGENT_SESSION_RECORD_SCHEMA_VERSION
+  schemaVersion:
+    | typeof AGENT_SESSION_RECORD_SCHEMA_VERSION
+    | typeof AGENT_SESSION_SANDBOX_RECORD_SCHEMA_VERSION
   sessionId: string
   location: AgentSessionExecutionLocation
   provider: AgentSessionHandleProvider
@@ -152,44 +159,6 @@ function isBoundedString(value: unknown, max: number): value is string {
 
 export function isAgentSessionId(value: unknown): value is string {
   return typeof value === 'string' && SESSION_ID_PATTERN.test(value)
-}
-
-/** NUL cannot occur in a host id, distro name, or workspace id, so no component can forge a join. */
-const SCOPE_KEY_SEPARATOR = '\u0000'
-
-/**
- * Scope key for host-and-workspace isolation. Native, WSL, and SSH copies of one workspace id are
- * different sessions; collapsing them would let one host adjudicate another host's lease.
- */
-export function agentSessionScopeKey(location: AgentSessionExecutionLocation): string {
-  return [location.executionHostId, location.wslDistro ?? '', location.workspaceId].join(
-    SCOPE_KEY_SEPARATOR
-  )
-}
-
-export function agentSessionExecutionLocationsEqual(
-  left: AgentSessionExecutionLocation,
-  right: AgentSessionExecutionLocation
-): boolean {
-  return (
-    agentSessionScopeKey(left) === agentSessionScopeKey(right) &&
-    left.workspaceKind === right.workspaceKind
-  )
-}
-
-export function isAgentSessionExecutionLocation(
-  value: unknown
-): value is AgentSessionExecutionLocation {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-  const location = value as Partial<AgentSessionExecutionLocation>
-  return (
-    isBoundedString(location.executionHostId, MAX_ID_LENGTH) &&
-    (location.wslDistro === null || isBoundedString(location.wslDistro, MAX_ID_LENGTH)) &&
-    isBoundedString(location.workspaceId, MAX_ID_LENGTH) &&
-    (location.workspaceKind === 'git-worktree' || location.workspaceKind === 'folder')
-  )
 }
 
 export function isAgentSessionProcessIdentity(
@@ -328,9 +297,13 @@ export function isAgentSessionRecord(value: unknown): value is AgentSessionRecor
   }
   const record = value as Partial<AgentSessionRecord>
   const shapeValid =
-    record.schemaVersion === AGENT_SESSION_RECORD_SCHEMA_VERSION &&
+    (record.schemaVersion === AGENT_SESSION_RECORD_SCHEMA_VERSION ||
+      record.schemaVersion === AGENT_SESSION_SANDBOX_RECORD_SCHEMA_VERSION) &&
     isAgentSessionId(record.sessionId) &&
     isAgentSessionExecutionLocation(record.location) &&
+    (record.location.sandbox
+      ? record.schemaVersion === AGENT_SESSION_SANDBOX_RECORD_SCHEMA_VERSION
+      : record.schemaVersion === AGENT_SESSION_RECORD_SCHEMA_VERSION) &&
     (record.provider === 'claude' || record.provider === 'codex') &&
     isAgentSessionProviderHandleChain(record.providerHandleChain) &&
     isAgentSessionAccountHome(record.accountHome) &&

@@ -124,3 +124,10 @@ For the Claude opt-in check, use a stopped disposable Claude sandbox and set
 `ORCA_SBX_NATIVE_SMOKE=1` and `ORCA_SBX_CLAUDE_SMOKE_NAME`, then run
 `src/main/sbx/sbx-claude-connection.live.test.ts`. As with the Codex check, the test
 stops the sandbox and leaves explicit removal to the caller.
+
+Sandbox session records use schema version 3 and pin the Docker sandbox ID and name
+in their execution location. Host records remain version 2. Readers that predate
+sandbox records quarantine version 3 instead of resuming it on the host. Scope keys
+separate host workspaces and each immutable guest ID. Store reopen tests cover this
+identity. Host-only owner probes refuse to adjudicate sandbox records, including
+batch probes; guest-aware recovery must be wired before native acquisition is enabled.

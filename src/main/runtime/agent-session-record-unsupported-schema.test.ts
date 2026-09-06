@@ -77,6 +77,21 @@ describe('unsupported agent session record schema', () => {
     })
   })
 
+  it('persists a sandbox namespace without upgrading host records', async () => {
+    const store = await AgentSessionRecordStore.open({ directory, hostId: 'local' })
+    const request = reserveRequest()
+    request.location.sandbox = { kind: 'docker-sandbox', id: 'guest-1', name: 'orca-codex' }
+    await store.reserveOwner(request)
+    const reopened = await AgentSessionRecordStore.open({ directory, hostId: 'local' })
+    expect(reopened.getRecord(SESSION_ID)).toMatchObject({
+      schemaVersion: 3,
+      location: { sandbox: request.location.sandbox }
+    })
+    const persisted = JSON.parse(await readFile(agentSessionStorePath(directory), 'utf-8'))
+    expect(persisted.records[SESSION_ID].schemaVersion).toBe(3)
+    expect(persisted.schemaVersion).toBe(AGENT_SESSION_STORE_SCHEMA_VERSION)
+  })
+
   it('rejects an ad-hoc store schema without rewriting it', async () => {
     const filePath = agentSessionStorePath(directory)
     const payload = JSON.stringify({

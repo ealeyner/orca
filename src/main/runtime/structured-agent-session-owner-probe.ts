@@ -19,6 +19,12 @@ export function createStructuredAgentSessionOwnerProbe(
   findSpawnTokenProcesses = findAgentSessionSpawnTokenProcesses
 ): (record: AgentSessionRecord) => Promise<AgentSessionOwnerProbe> {
   return async (record) => {
+    if (record.location.sandbox) {
+      return {
+        outcome: 'indeterminate',
+        reason: 'sandbox execution requires guest ownership evidence'
+      }
+    }
     const owner = record.lease.ownerProcess
     if (!owner) {
       if (record.lease.processlessAt !== undefined && record.lease.processlessAt !== null) {
@@ -76,7 +82,7 @@ export function createStructuredAgentSessionOwnerProbes(
     }[] = []
     for (const record of records) {
       const owner = record.lease.ownerProcess
-      if (owner?.hostId === hostId) {
+      if (owner?.hostId === hostId && !record.location.sandbox) {
         localOwners.push({ record, owner })
       } else {
         results.set(record.sessionId, await probeOne(record))

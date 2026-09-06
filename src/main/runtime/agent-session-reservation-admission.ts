@@ -18,6 +18,7 @@ import {
 } from '../../shared/agent-session-lease-adjudication'
 import {
   AGENT_SESSION_RECORD_SCHEMA_VERSION,
+  AGENT_SESSION_SANDBOX_RECORD_SCHEMA_VERSION,
   agentSessionExecutionLocationsEqual,
   isAgentSessionLaunchArgs,
   isAgentSessionLaunchEnv,
@@ -180,7 +181,9 @@ function createAgentSessionRecord(
   reservation: AgentSessionReservation
 ): AgentSessionRecord {
   return {
-    schemaVersion: AGENT_SESSION_RECORD_SCHEMA_VERSION,
+    schemaVersion: request.location.sandbox
+      ? AGENT_SESSION_SANDBOX_RECORD_SCHEMA_VERSION
+      : AGENT_SESSION_RECORD_SCHEMA_VERSION,
     sessionId: request.sessionId,
     location: request.location,
     provider: request.provider,

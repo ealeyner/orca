@@ -16,7 +16,7 @@ import {
   type AgentSessionOperationRow
 } from '../../shared/agent-session-operation-ledger'
 import {
-  AGENT_SESSION_RECORD_SCHEMA_VERSION,
+  isAgentSessionRecordSchemaVersion,
   isAgentSessionRecord,
   type AgentSessionRecord
 } from '../../shared/agent-session-record'
@@ -154,7 +154,7 @@ function parseState(
           (value as { schemaVersion?: unknown }).schemaVersion
         const reason = record
           ? 'record_key_session_id_mismatch'
-          : valueSchemaVersion === AGENT_SESSION_RECORD_SCHEMA_VERSION
+          : isAgentSessionRecordSchemaVersion(valueSchemaVersion)
             ? 'current_shape_invalid'
             : 'unsupported_schema'
         state.unreadableRecords.set(sessionId, { reason, raw: value })
