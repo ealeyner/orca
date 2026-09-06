@@ -7,7 +7,14 @@ import { reserveSbxNativeProvider } from './sbx-native-reservation'
 
 /** Called on the execution runtime, never on an SSH client standing in for that runtime. */
 export async function openSbxCodexConnection(
-  input: { name: string; sandboxId: string; workspace: string; cliArgs?: string[] },
+  input: {
+    name: string
+    sandboxId: string
+    workspace: string
+    cliArgs?: string[]
+    codexHome?: string
+    transportEnv?: Record<string, string>
+  },
   handlers: CodexAppServerConnectionHandlers = {},
   openConnection = openCodexAppServerConnection
 ) {
@@ -23,10 +30,12 @@ export async function openSbxCodexConnection(
           input.workspace,
           '--',
           input.name,
+          ...(input.codexHome ? ['env', `CODEX_HOME=${input.codexHome}`] : []),
           'codex',
           ...(input.cliArgs ?? []),
           'app-server'
         ],
+        ...(input.transportEnv ? { env: input.transportEnv } : {}),
         confirmExecutionExit: reservation.confirmExecutionExit
       },
       handlers

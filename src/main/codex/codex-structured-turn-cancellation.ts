@@ -42,6 +42,9 @@ export class CodexStructuredTurnCancellation {
   }
 
   captureBaseline(session: CodexSession): Promise<CodexTurnProcessSnapshot | null> {
+    if (session.sandbox) {
+      return Promise.resolve(null)
+    }
     this.refreshBaseline(session)
     return this.state(session).baseline
   }
@@ -73,6 +76,12 @@ export class CodexStructuredTurnCancellation {
   }
 
   async cancel(session: CodexSession, turnId: string): Promise<{ cancelled: boolean }> {
+    if (session.sandbox) {
+      const cancelled = await session.forceCloseUnexpected?.(
+        new Error('Sandbox stopped to cancel the turn; the session can be resumed.')
+      )
+      return { cancelled: cancelled === true }
+    }
     const state = this.state(session)
     state.blockedCompletions.add(turnId)
     const baseline = await state.baseline

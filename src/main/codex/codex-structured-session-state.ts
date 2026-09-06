@@ -1,3 +1,4 @@
+import type { SbxNativeTarget } from '../sbx/sbx-native-reservation'
 import type { AgentSessionJournalIdentity } from '../../shared/agent-session-journal-types'
 import { randomUUID } from 'node:crypto'
 import { cancelProcessAcquisition } from '../../shared/child-process/cancel-process-acquisition'
@@ -11,6 +12,7 @@ import type { CodexTurnProcessSnapshot } from './codex-structured-turn-processes
 import type { StructuredAgentSessionLifecycleEvent } from '../native-chat/agent-session-wire/structured-agent-session-adapter'
 
 export type CodexStructuredLaunch = {
+  sandbox?: SbxNativeTarget
   command: string
   args: string[]
   cwd: string
@@ -56,6 +58,7 @@ export type CodexStructuredSessionAdapterDeps = {
 }
 
 export type CodexSession = {
+  sandbox?: boolean
   connection: CodexAppServerConnection
   ended: boolean
   requestedClose: boolean

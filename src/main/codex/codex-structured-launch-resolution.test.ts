@@ -166,3 +166,37 @@ describe('codex structured launch resolution', () => {
     ).rejects.toThrow('workspace-1 is gone')
   })
 })
+
+it('resolves sandbox resumes without consulting host commands, credentials, or rollout files', async () => {
+  const value = record()
+  value.schemaVersion = 3
+  value.location.sandbox = { kind: 'docker-sandbox', id: 'guest-1', name: 'orca-codex' }
+  value.providerHandleChain = [
+    {
+      linkId: 'link-1',
+      origin: 'created',
+      mintedAtFence: 1,
+      observedAt: 1,
+      handle: { provider: 'codex', threadId: 'thread-1' }
+    }
+  ]
+  const host = vi.fn(() => {
+    throw new Error('host access')
+  })
+  const resolve = createCodexStructuredLaunchResolver({
+    store: { getRecord: () => value } as unknown as AgentSessionRecordStore,
+    resolveWorkspacePath: async () => '/work/repo',
+    resolveCommand: host,
+    resolveEnvironment: host,
+    resolveRollout: host
+  })
+  expect(await resolve({ identity: IDENTITY })).toEqual({
+    command: 'codex',
+    args: ['app-server'],
+    cwd: '/work/repo',
+    codexHome: value.accountHome.path,
+    resumeThreadId: 'thread-1',
+    sandbox: { name: 'orca-codex', sandboxId: 'guest-1', workspace: '/work/repo' }
+  })
+  expect(host).not.toHaveBeenCalled()
+})

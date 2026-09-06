@@ -1,3 +1,4 @@
+import { posix } from 'node:path'
 // How a durable session record becomes a Codex process launch.
 //
 // Every input is read back from the record the store already made durable, not
@@ -48,6 +49,21 @@ export function createCodexStructuredLaunchResolver(
     }
     if (accountHome.variable !== 'CODEX_HOME') {
       throw new Error(`codex sessions pin CODEX_HOME, not ${accountHome.variable}`)
+    }
+    if (location.sandbox) {
+      if (!posix.isAbsolute(accountHome.path) || accountHome.path.includes('\0')) {
+        throw new Error('sandbox Codex account home must be an absolute guest path')
+      }
+      const cwd = await deps.resolveWorkspacePath(location.workspaceId)
+      const head = agentSessionProviderHandleChainHead(record.providerHandleChain)
+      return {
+        command: 'codex',
+        args: [...(record.launchArgs ?? []), 'app-server'],
+        cwd,
+        codexHome: accountHome.path,
+        resumeThreadId: head?.handle.provider === 'codex' ? head.handle.threadId : null,
+        sandbox: { name: location.sandbox.name, sandboxId: location.sandbox.id, workspace: cwd }
+      }
     }
     const environment = await deps.resolveEnvironment?.()
     const pathEnv = environment?.PATH ?? environment?.Path ?? null

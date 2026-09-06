@@ -1,3 +1,4 @@
+import { openSbxCodexConnection } from '../sbx/sbx-codex-connection'
 import {
   AgentSessionAcquisitionRefusal,
   AgentSessionPreSpawnError,
@@ -101,7 +102,23 @@ export async function acquireCodexStructuredSession(input: {
         throw new AgentSessionPreSpawnError(error)
       })
     acquisitions.assertCurrent(sessionId, attempt)
-    const connection = await open(
+    const openLaunch: typeof open = launch.sandbox
+      ? (_transport, handlers) =>
+          openSbxCodexConnection(
+            {
+              ...launch.sandbox!,
+              cliArgs: launch.args.slice(0, -1),
+              ...(launch.codexHome ? { codexHome: launch.codexHome } : {}),
+              transportEnv: buildCodexStructuredChildEnvironment(
+                { ...launch, env: undefined, codexHome: null },
+                acquireInput.spawnToken
+              )
+            },
+            handlers,
+            open
+          )
+      : open
+    const connection = await openLaunch(
       {
         command: launch.command,
         args: launch.args,
@@ -188,10 +205,11 @@ export async function acquireCodexStructuredSession(input: {
     acquisitions.assertCurrent(sessionId, attempt)
     acquisitions.deleteIfCurrent(sessionId, attempt)
     const session: CodexSession = {
+      ...(launch.sandbox ? { sandbox: true } : {}),
       connection,
       ...codexSessionLifecycle(acquireInput.fence, acquired.acquisitionGeneration as string),
       threadId: opened.threadId,
-      historyPath: opened.historyPath,
+      historyPath: launch.sandbox ? null : opened.historyPath,
       prompts: acquisition.prompts,
       options: restoredCodexSessionOptions(acquireInput.options),
       reportedOptions: reportedCodexThreadOptions(opened),

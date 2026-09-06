@@ -82,14 +82,12 @@ governance profiles for centrally enforced policy.
 
 ### Native provider work still required
 
-Structured providers need a durable sandbox execution namespace, not only an
-`sbx exec` command prefix. Their current owner probes observe host PIDs, and their
-resume resolvers read host account roots. Before enabling native structured chat:
+Durable sandbox identity, guest-aware recovery, and Codex native acquisition are
+implemented. Before enabling native structured chat in the IDE:
 
-- Pin the immutable sandbox ID and guest account root in each durable session.
+- Provision and pin the guest account root when creating a native session.
 - Resolve provider handles and transcript proofs inside that pinned sandbox.
-- Wire the verified Codex and Claude guest connections into durable session
-  acquisition without PTY or startup banners.
+- Wire the verified Claude guest connection into durable session acquisition.
 - Distinguish a lost sbx transport from proven guest process exit during close,
   crash recovery, and native/TUI handoff. `sbx-lifecycle.ts` supplies identity checks
   and post-operation sandbox state verification for that boundary.
@@ -103,8 +101,10 @@ The Codex guest transport is now implemented in `sbx-codex-connection.ts` and
 verified against a real Docker sandbox: initialization, model discovery, and
 confirmed guest shutdown passed. Its exit callback cannot release ownership on
 local transport exit alone; failed handshake cleanup retains a retryable connection.
-The adapter is not yet connected to native session acquisition, because the durable
-record and restart-time owner probes must first understand sandbox identity.
+Codex native acquisition now selects this transport for sandbox records and passes
+the account root inside the guest. Resume uses the guest provider thread ID without
+consulting host rollout files or credentials. Guest history paths are not exposed
+as host-local files; guest transcript access and TUI handoff still need integration.
 
 To repeat the opt-in transport check, create and stop a disposable Codex sandbox,
 then set `ORCA_SBX_NATIVE_SMOKE=1` and `ORCA_SBX_NATIVE_SMOKE_NAME` to its name while
@@ -131,5 +131,14 @@ sandbox records quarantine version 3 instead of resuming it on the host. Scope k
 separate host workspaces and each immutable guest ID. Store reopen tests cover this
 identity. Sandbox owner probes require transport-exit proof followed by inventory proof that
 the pinned guest ID is stopped or absent. A running guest, a failed inventory read,
-or another execution host stays fenced. Batch recovery uses the same checks. Native
-acquisition and guest transcript/resume resolution still need to be wired.
+or another execution host stays fenced. Batch recovery uses the same checks. Claude
+acquisition and guest transcript resolution still need to be wired.
+
+
+`sbx-codex-acquisition.live.test.ts` exercises native acquisition, submission, close,
+and resume in a disposable guest. Set the same opt-in variables plus
+`ORCA_SBX_CODEX_HOME` to the guest account directory. It submits a minimal prompt;
+it requires confirmed cancellation before resuming the same thread. Sandbox
+cancellation stops the entire per-agent guest and enters session recovery, rather
+than treating host process enumeration as proof that guest tools exited.
+An empty Codex thread is not persisted until its first turn.
