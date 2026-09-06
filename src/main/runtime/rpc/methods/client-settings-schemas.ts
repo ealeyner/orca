@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SbxLaunchPolicySchema } from '../../../../shared/sbx-types'
 import { normalizePRBotAuthorOverrides } from '../../../../shared/pr-bot-author-overrides'
 import { isTaskProvider } from '../../../../shared/task-providers'
 import { isTuiAgent } from '../../../../shared/tui-agent-config'
@@ -41,6 +42,12 @@ const GitHubProjectSettings = z
 
 export const SettingsUpdate = z
   .object({
+    sbx: z
+      .object({
+        enabled: z.boolean(),
+        agents: z.record(z.string().max(128), SbxLaunchPolicySchema).optional()
+      })
+      .optional(),
     worktreeVisibilityDefaults: WorktreeVisibilityDefaultsUpdate.optional(),
     defaultTuiAgent: z
       .unknown()

@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { SBX_AGENTS } from '../../../shared/sbx-types'
+import { TUI_AGENT_CONFIG } from '../../../shared/tui-agent-config'
 import { useAppStore } from '@/store'
 import type { TuiAgent } from '../../../shared/tui-agent'
 
@@ -52,6 +54,19 @@ function normalizeAgentDetectionTarget(
 export function useDetectedAgents(
   connectionId: AgentDetectionTarget | string | null | undefined
 ): UseDetectedAgentsResult {
+  const sbx = useAppStore((s) => s.settings?.sbx)
+  const sandboxAgents = useMemo(
+    () =>
+      sbx?.enabled
+        ? (Object.keys(TUI_AGENT_CONFIG) as TuiAgent[]).filter(
+            (agent) =>
+              sbx.agents?.[agent]?.enabled !== false &&
+              ((SBX_AGENTS as readonly string[]).includes(agent) ||
+                Boolean(sbx.agents?.[agent]?.template))
+          )
+        : null,
+    [sbx]
+  )
   const target = normalizeAgentDetectionTarget(connectionId)
   const observedRemoteTargetKeysRef = useRef<Set<string>>(new Set())
   // Why: undefined means "store not yet hydrated" — we don't know if the
@@ -183,5 +198,11 @@ export function useDetectedAgents(
     localContextKey
   ])
 
-  return { detectedIds, isLoading, detectionFailed, isRefreshing, refresh }
+  return {
+    detectedIds: isUnknown ? null : (sandboxAgents ?? detectedIds),
+    isLoading: sandboxAgents && !isUnknown ? false : isLoading,
+    detectionFailed: sandboxAgents ? false : detectionFailed,
+    isRefreshing,
+    refresh
+  }
 }

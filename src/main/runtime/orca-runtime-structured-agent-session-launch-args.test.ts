@@ -27,6 +27,22 @@ async function installedDeps(settings: Record<string, unknown>): Promise<Install
 }
 
 describe('structured agent-session launch args wiring', () => {
+  it('refuses host structured-agent startup when sandbox execution is enabled', async () => {
+    installStructuredAgentSessionHost.mockClear()
+    await expect(
+      runtimeWith({ sbx: { enabled: true } }).ensureStructuredAgentSessionHost()
+    ).rejects.toThrow('Sandbox execution is enabled')
+    expect(installStructuredAgentSessionHost).not.toHaveBeenCalled()
+  })
+
+  it('rechecks sandbox execution before an already installed provider launches', async () => {
+    const settings = { sbx: { enabled: false }, agentDefaultArgs: {}, agentDefaultEnv: {} }
+    const deps = await installedDeps(settings)
+    settings.sbx.enabled = true
+    expect(() => deps.resolveLaunchArgs('claude')).toThrow('Sandbox execution is enabled')
+    expect(() => deps.resolveLaunchArgs('codex')).toThrow('Sandbox execution is enabled')
+  })
+
   it('resolves Claude launch args from the Claude agent defaults, not Codex flags', async () => {
     const deps = await installedDeps({
       agentDefaultArgs: {

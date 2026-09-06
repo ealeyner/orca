@@ -20,6 +20,7 @@ import type { RuntimeStore } from './runtime-store-contract'
 export type RuntimeClientSettings = Pick<
   GlobalSettings,
   | 'defaultTuiAgent'
+  | 'sbx'
   | 'disabledTuiAgents'
   | 'agentCmdOverrides'
   | 'agentDefaultArgs'
@@ -51,6 +52,7 @@ export type RuntimeHostDisplayLabelOverrides = Partial<
 
 export type RuntimeClientSettingsUpdate = Pick<
   Partial<GlobalSettings>,
+  | 'sbx'
   | 'agentStatusHooksEnabled'
   | 'defaultTuiAgent'
   | 'disabledTuiAgents'
@@ -86,6 +88,7 @@ export class RuntimeClientSettingsController {
     const settings = this.store.getSettings()
     return {
       defaultTuiAgent: settings.defaultTuiAgent ?? null,
+      sbx: settings.sbx,
       disabledTuiAgents: settings.disabledTuiAgents ?? [],
       agentCmdOverrides: settings.agentCmdOverrides ?? {},
       agentDefaultArgs: settings.agentDefaultArgs ?? {},

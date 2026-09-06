@@ -1,4 +1,5 @@
 import type { AgentSessionClaimedSpawnResult } from '../../../../shared/agent-session-host-authority'
+import { prepareSbxAgentLaunch } from '../../../sbx/sbx-agent-launch'
 import { isTerminalLeafId, makePaneKey } from '../../../../shared/stable-pane-id'
 import { isValidTerminalTabId } from '../../../../shared/terminal-tab-id'
 import {
@@ -94,6 +95,12 @@ export async function spawnPtyFromRuntimeController(
     if (earlyReserved) {
       return toRuntimeSpawnReply(earlyReserved)
     }
+    await prepareSbxAgentLaunch(
+      ctx.spawnOptions,
+      deps.getSettings?.(),
+      args.connectionId,
+      args.command
+    )
     await executeRuntimePtySpawn(ctx)
     return toRuntimeSpawnReply(await commitRuntimePtySpawn(ctx))
   } catch (err) {

@@ -1,5 +1,5 @@
 import React from 'react'
-import { Kanban } from 'lucide-react'
+import { Box, Kanban } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
@@ -74,6 +74,25 @@ const SidebarToolbar = React.memo(function SidebarToolbar({
       <div className="flex items-center justify-between border-t border-worktree-sidebar-border px-2 py-1.5">
         <div className="flex min-w-0 items-center gap-1">
           <SidebarSettingsHelpMenu />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Docker Sandboxes"
+                onClick={() => {
+                  const state = useAppStore.getState()
+                  state.openSettingsTarget({ pane: 'agents', repoId: null })
+                  state.openSettingsPage()
+                }}
+              >
+                <Box className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={4}>
+              Docker Sandboxes
+            </TooltipContent>
+          </Tooltip>
         </div>
         <div className="flex items-center gap-1">
           <ScrollToCurrentWorkspaceToolbarButton />

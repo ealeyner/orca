@@ -139,6 +139,7 @@ export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStructuredAgent
    * should never open the record store.
    */
   async ensureStructuredAgentSessionHost(): Promise<void> {
+    this.assertHostAgentExecutionAllowed()
     await installStructuredAgentSessionHost({
       stateDirectory: getProfileUserDataPath(),
       hostId: LOCAL_EXECUTION_HOST_ID,
@@ -165,10 +166,17 @@ export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStructuredAgent
   protected resolveConfiguredStructuredLaunchArgs(
     provider: AgentSessionRecord['provider']
   ): string[] {
+    this.assertHostAgentExecutionAllowed()
     if (provider === 'claude') {
       return this.resolveConfiguredClaudeStructuredArgs()
     }
     return this.resolveConfiguredCodexStructuredArgs()
+  }
+
+  assertHostAgentExecutionAllowed(): void {
+    if (this.store?.getSettings?.().sbx?.enabled) {
+      throw new Error('Sandbox execution is enabled. Start this agent in a terminal sandbox.')
+    }
   }
 
   protected resolveConfiguredClaudeStructuredArgs(): string[] {

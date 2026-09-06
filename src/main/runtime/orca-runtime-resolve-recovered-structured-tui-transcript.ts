@@ -52,6 +52,9 @@ export class OrcaRuntimeWithResolveRecoveredStructuredTuiTranscript extends Orca
     worktreeSelector: string,
     agent: 'claude' | 'codex'
   ): Promise<{ supported: boolean; reason?: 'agent' | 'remote' | 'wsl' }> {
+    if (this.store?.getSettings?.().sbx?.enabled) {
+      return { supported: false, reason: 'agent' }
+    }
     const location = await this.resolveStructuredAgentSessionLocation(worktreeSelector)
     return resolveStructuredAgentSessionCreateSupport({
       agent,

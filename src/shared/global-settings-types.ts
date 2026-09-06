@@ -1,3 +1,4 @@
+import type { SbxSettings } from './sbx-types'
 import type { ExecutionHostId } from './execution-host'
 import type { GitHubProjectSettings } from './github/project-types'
 import type { VoiceSettings } from './speech-types'
@@ -52,6 +53,7 @@ export type WorktreeVisibilityDefaults = {
 }
 
 export type GlobalSettings = {
+  sbx?: SbxSettings
   workspaceDir: string
   /** Host-owned defaults used when a repository has no explicit visibility override. */
   worktreeVisibilityDefaults?: WorktreeVisibilityDefaults

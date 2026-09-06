@@ -50,7 +50,10 @@ import { AGENT_HOOK_METHODS } from './agent-hooks'
 // Why: a flat manifest keeps registration order explicit and provides one
 // grep-point for "what methods does the RPC server expose?" — useful when
 // auditing the security boundary or wiring new CLI commands.
+import { SBX_METHODS } from './sbx'
+
 export const ALL_RPC_METHODS: readonly RpcAnyMethod[] = [
+  ...SBX_METHODS,
   ...STATUS_METHODS,
   ...AGENT_HOOK_METHODS,
   ...AI_VAULT_METHODS,

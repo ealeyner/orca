@@ -28,6 +28,15 @@ function route(overrides: Partial<Parameters<typeof resolveAgentLaunchRoute>[0]>
 
 describe('resolveAgentLaunchRoute', () => {
   it.each(['claude', 'codex'] as const)(
+    'routes %s through a sandbox terminal when enabled',
+    (agent) => {
+      expect(route({ agent, settings: { ...settings, sbx: { enabled: true } } })).toBe(
+        'terminal-tui'
+      )
+    }
+  )
+
+  it.each(['claude', 'codex'] as const)(
     'routes a supported local %s launch to structured native chat',
     (agent) => {
       expect(route({ agent })).toBe('structured-native-chat')

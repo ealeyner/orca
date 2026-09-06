@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { SbxPane } from './SbxPane'
 import { Info } from 'lucide-react'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
@@ -237,6 +238,7 @@ export function AgentsPane({
 
   return (
     <div className="space-y-8">
+      <SbxPane settings={settings} updateSettings={updateSettings} />
       <AgentDefaultSetting
         defaultAgent={defaultAgent}
         detectedIds={detectedIds}

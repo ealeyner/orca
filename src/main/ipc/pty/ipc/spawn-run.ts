@@ -1,4 +1,5 @@
 import { rejectPaneSpawnReservation } from '../pane/spawn-reservation'
+import { prepareSbxAgentLaunch } from '../../../sbx/sbx-agent-launch'
 import { ptySizes } from '../delivery/visibility-state'
 import { beginPtyIpcSpawn } from './spawn-begin'
 import { preparePtyIpcSpawnPreflight } from './spawn-preflight'
@@ -52,6 +53,12 @@ export async function runPtyIpcSpawn(deps: PtySpawnIpcDeps, args: PtySpawnIpcArg
       releaseAbandonedAgentTeamsLeader(ctx)
       return earlyReserved
     }
+    await prepareSbxAgentLaunch(
+      ctx.spawnOptions,
+      deps.getSettings?.(),
+      args.connectionId,
+      args.command
+    )
     await executePtyIpcSpawn(ctx)
     return await commitPtyIpcSpawn(ctx)
   } catch (err) {

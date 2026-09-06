@@ -22,6 +22,7 @@ export type AgentLaunchRoutingInput = {
         | 'experimentalNativeChat'
         | 'experimentalStructuredNativeChat'
         | 'openAgentTabsInChatByDefault'
+        | 'sbx'
       >
     | null
     | undefined
@@ -71,6 +72,9 @@ export function hasExplicitTuiAgentArgs(
 }
 
 export function resolveAgentLaunchRoute(input: AgentLaunchRoutingInput): AgentLaunchRoute {
+  if (input.settings?.sbx?.enabled) {
+    return 'terminal-tui'
+  }
   const initialViewMode = decideInitialAgentTabViewMode({
     experimentalNativeChat: input.settings?.experimentalNativeChat,
     openAgentTabsInChatByDefault: input.settings?.openAgentTabsInChatByDefault,
