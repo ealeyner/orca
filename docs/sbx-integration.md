@@ -129,5 +129,7 @@ Sandbox session records use schema version 3 and pin the Docker sandbox ID and n
 in their execution location. Host records remain version 2. Readers that predate
 sandbox records quarantine version 3 instead of resuming it on the host. Scope keys
 separate host workspaces and each immutable guest ID. Store reopen tests cover this
-identity. Host-only owner probes refuse to adjudicate sandbox records, including
-batch probes; guest-aware recovery must be wired before native acquisition is enabled.
+identity. Sandbox owner probes require transport-exit proof followed by inventory proof that
+the pinned guest ID is stopped or absent. A running guest, a failed inventory read,
+or another execution host stays fenced. Batch recovery uses the same checks. Native
+acquisition and guest transcript/resume resolution still need to be wired.

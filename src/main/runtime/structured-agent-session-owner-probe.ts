@@ -1,3 +1,4 @@
+import { probeSbxSessionOwner } from '../sbx/sbx-session-owner-probe'
 import type { AgentSessionOwnerProbe } from '../../shared/agent-session-lease-adjudication'
 import type { AgentSessionRecord } from '../../shared/agent-session-record'
 import {
@@ -16,15 +17,10 @@ import { readEchoedAgentSessionSpawnToken } from './agent-session-spawn-token-re
 export function createStructuredAgentSessionOwnerProbe(
   hostId: string,
   probe = probeAgentSessionProcessIdentity,
-  findSpawnTokenProcesses = findAgentSessionSpawnTokenProcesses
+  findSpawnTokenProcesses = findAgentSessionSpawnTokenProcesses,
+  probeSandbox = probeSbxSessionOwner
 ): (record: AgentSessionRecord) => Promise<AgentSessionOwnerProbe> {
-  return async (record) => {
-    if (record.location.sandbox) {
-      return {
-        outcome: 'indeterminate',
-        reason: 'sandbox execution requires guest ownership evidence'
-      }
-    }
+  const probeTransport = async (record: AgentSessionRecord): Promise<AgentSessionOwnerProbe> => {
     const owner = record.lease.ownerProcess
     if (!owner) {
       if (record.lease.processlessAt !== undefined && record.lease.processlessAt !== null) {
@@ -67,6 +63,10 @@ export function createStructuredAgentSessionOwnerProbe(
       deps: { readEchoedSpawnToken: readEchoedAgentSessionSpawnToken }
     })
   }
+  return (record) =>
+    record.location.sandbox
+      ? probeSandbox(record, hostId, () => probeTransport(record))
+      : probeTransport(record)
 }
 
 export function createStructuredAgentSessionOwnerProbes(

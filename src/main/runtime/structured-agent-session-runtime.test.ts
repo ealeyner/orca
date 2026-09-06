@@ -1,3 +1,4 @@
+import { agentSessionRecordFixture } from '../../shared/agent-session-record.test-fixture'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -32,17 +33,21 @@ function record(
     runtimeFence?: number
   } = {}
 ): AgentSessionRecord {
+  const base = agentSessionRecordFixture()
   return {
+    ...base,
     sessionId: 'session-1',
     providerHandleChain: [],
     lease: {
+      ...base.lease,
+      sessionId: 'session-1',
       ownerProcess,
       reservedSpawnToken: null,
       claimStatus: 'released',
       runtimeFence: 3,
       ...lease
     }
-  } as unknown as AgentSessionRecord
+  }
 }
 
 const OWNER: AgentSessionProcessIdentity = {
