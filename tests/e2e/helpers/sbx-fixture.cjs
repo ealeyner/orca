@@ -20,7 +20,7 @@ if (args[0] === 'ls') {
 } else if (args[0] === 'run') {
   const name = args[args.indexOf('--name') + 1]
   const row = rows.find((s) => s.name === name)
-  if (!row) process.exit(1)
+  if (!row) {process.exit(1)}
   row.status = 'running'
   save()
   console.log(`SBX_AGENT_READY ${name}`)
@@ -28,13 +28,27 @@ if (args[0] === 'ls') {
     process.stdin.resume()
     process.stdin.on('data', () => console.log(`SBX_AGENT_READY ${name}`))
   }
+} else if (args[0] === 'exec' && args.includes('node') && args.includes('-e')) {
+  const agent = args.at(-1)
+  console.log(
+    JSON.stringify({
+      variable: agent === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME',
+      path: `/home/agent/.${agent}`
+    })
+  )
+} else if (args[0] === 'exec' && args.includes('app-server')) {
+  const row = rows.find((s) => s.name === args[args.indexOf('--') + 1])
+  if (!row) {process.exit(1)}
+  row.status = 'running'
+  save()
+  require('./sbx-native-codex-fixture.cjs')()
 } else if (args[0] === 'exec') {
   console.log('SBX_SHELL_READY')
   process.stdin.resume()
   process.stdin.on('data', () => {})
 } else if (args[0] === 'stop') {
   const row = rows.find((s) => s.name === args[1])
-  if (row) row.status = 'stopped'
+  if (row) {row.status = 'stopped'}
   save()
 } else if (args[0] === 'rm') {
   fs.writeFileSync(file, JSON.stringify(rows.filter((s) => s.name !== args.at(-1))))

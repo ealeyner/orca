@@ -16,7 +16,9 @@ import {
   requireStructuredCapability,
   requireStructuredHost as requireHost,
   structuredCallerFor as callerFor,
-  supportsStructuredSessions
+  supportsStructuredSessions,
+  supportsSandboxStructuredSessions,
+  requireSandboxStructuredCapability
 } from './structured-agent-session-gate'
 import type { AgentSessionAttachParams } from '../../../native-chat/agent-session-wire/structured-agent-session-attach'
 import { STRUCTURED_AGENT_SESSION_HOLD_METHODS } from './structured-agent-session-hold'
@@ -52,6 +54,9 @@ import {
  * or forge, such as whether this machine can read a provider child's process start time.
  */
 async function resolveClientSuppliedAttach(params: z.infer<typeof AttachParams>, ctx: RpcContext) {
+  if (params.location.sandbox) {
+    requireSandboxStructuredCapability(ctx)
+  }
   await ensureHostInstalled(ctx)
   const host = requireHost(ctx)
   if (!host.supportsCreate(params.location, params.agent)) {
@@ -82,6 +87,12 @@ export const STRUCTURED_AGENT_SESSION_METHODS: RpcAnyMethod[] = [
       if (!supportsStructuredSessions(ctx)) {
         throw new Error('structured_agent_session_unsupported')
       }
+      if (
+        ctx.runtime.getClientSettings?.()?.sbx?.enabled &&
+        !supportsSandboxStructuredSessions(ctx)
+      ) {
+        return { supported: false, reason: 'agent' }
+      }
       return ctx.runtime.getStructuredAgentSessionCreateSupport(params.worktree, params.agent)
     }
   }),
@@ -97,6 +108,9 @@ export const STRUCTURED_AGENT_SESSION_METHODS: RpcAnyMethod[] = [
       // a client can tell "nothing was created" from "the outcome is unknown".
       const prepared = await resolveUncommittedStructuredCreate(async () => {
         if ('worktree' in params) {
+          if (ctx.runtime.getClientSettings?.()?.sbx?.enabled) {
+            requireSandboxStructuredCapability(ctx)
+          }
           const intentFingerprint = computeAgentSessionPayloadFingerprint({
             method: 'agentSession.create',
             sessionId: params.envelope.sessionId,

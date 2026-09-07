@@ -1,3 +1,4 @@
+import type { AgentSessionRecord } from '../../shared/agent-session-record'
 import { posix } from 'node:path'
 // How a durable session record becomes a Codex process launch.
 //
@@ -16,6 +17,7 @@ import type { CodexStructuredLaunch } from './codex-structured-session-adapter'
 import { resolvePinnedCodexRolloutProof } from './codex-tui-rollout-proof'
 
 export type CodexStructuredLaunchResolverDeps = {
+  assertExecutionAllowed?: (record: AgentSessionRecord) => Promise<void>
   store: AgentSessionRecordStore
   /** Absolute path of a workspace on this host. Rejects when the workspace no
    *  longer resolves, which is the case a stale mobile client hits. */
@@ -35,6 +37,7 @@ export function createCodexStructuredLaunchResolver(
     if (!record) {
       throw new Error(`no durable agent-session record for ${identity.sessionId}`)
     }
+    await deps.assertExecutionAllowed?.(record)
     const { location, accountHome } = record
     if (record.provider !== 'codex') {
       throw new Error(`session ${identity.sessionId} is a ${record.provider} session`)

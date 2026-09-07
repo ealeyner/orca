@@ -1,4 +1,5 @@
 // @ts-nocheck -- mechanically split from OrcaRuntimeService; behavior is covered by AST equivalence and characterization tests.
+import { assertSbxStructuredExecutionAllowed } from '../sbx/sbx-structured-execution-policy'
 import { OrcaRuntimeWithStructuredAgentSessionRecoverTuiOwner } from './orca-runtime-structured-agent-session-recover-tui-owner'
 import { DEFAULT_WORKTREE_PS_LIMIT } from './orca-runtime-postlude'
 import type { RuntimeWorktreePsResult } from '../../shared/runtime-types'
@@ -139,9 +140,10 @@ export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStructuredAgent
    * should never open the record store.
    */
   async ensureStructuredAgentSessionHost(): Promise<void> {
-    this.assertHostAgentExecutionAllowed()
     await installStructuredAgentSessionHost({
       stateDirectory: getProfileUserDataPath(),
+      assertExecutionAllowed: (record) =>
+        assertSbxStructuredExecutionAllowed(record, this.requireStore().getSettings().sbx),
       hostId: LOCAL_EXECUTION_HOST_ID,
       claimKeyId: this.agentSessionClaimSigner.keyId,
       // Resolves folder workspaces as well as git worktrees, so a chat session
@@ -166,17 +168,10 @@ export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStructuredAgent
   protected resolveConfiguredStructuredLaunchArgs(
     provider: AgentSessionRecord['provider']
   ): string[] {
-    this.assertHostAgentExecutionAllowed()
     if (provider === 'claude') {
       return this.resolveConfiguredClaudeStructuredArgs()
     }
     return this.resolveConfiguredCodexStructuredArgs()
-  }
-
-  assertHostAgentExecutionAllowed(): void {
-    if (this.store?.getSettings?.().sbx?.enabled) {
-      throw new Error('Sandbox execution is enabled. Start this agent in a terminal sandbox.')
-    }
   }
 
   protected resolveConfiguredClaudeStructuredArgs(): string[] {

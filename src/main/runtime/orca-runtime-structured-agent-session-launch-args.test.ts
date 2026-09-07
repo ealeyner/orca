@@ -1,7 +1,10 @@
+import { agentSessionRecordFixture } from '../../shared/agent-session-record.test-fixture'
+import type { AgentSessionRecord } from '../../shared/agent-session-record'
 import { describe, expect, it, vi } from 'vitest'
 import { OrcaRuntimeService } from './orca-runtime'
 
 type InstalledDeps = {
+  assertExecutionAllowed: (record: AgentSessionRecord) => Promise<void>
   resolveLaunchArgs: (provider: 'claude' | 'codex') => Promise<string[]> | string[]
   resolveLaunchEnvOverlay: () => Record<string, string>
   resolveClaudeLaunchEnv?: () => Record<string, string>
@@ -27,20 +30,22 @@ async function installedDeps(settings: Record<string, unknown>): Promise<Install
 }
 
 describe('structured agent-session launch args wiring', () => {
-  it('refuses host structured-agent startup when sandbox execution is enabled', async () => {
-    installStructuredAgentSessionHost.mockClear()
-    await expect(
-      runtimeWith({ sbx: { enabled: true } }).ensureStructuredAgentSessionHost()
-    ).rejects.toThrow('Sandbox execution is enabled')
-    expect(installStructuredAgentSessionHost).not.toHaveBeenCalled()
+  it('installs native sessions but refuses host execution under sandbox policy', async () => {
+    const deps = await installedDeps({ sbx: { enabled: true } })
+    expect(installStructuredAgentSessionHost).toHaveBeenCalledOnce()
+    await expect(deps.assertExecutionAllowed(agentSessionRecordFixture())).rejects.toThrow(
+      'Sandbox execution is enabled'
+    )
   })
 
-  it('rechecks sandbox execution before an already installed provider launches', async () => {
+  it('rechecks sandbox policy before an installed provider launches', async () => {
     const settings = { sbx: { enabled: false }, agentDefaultArgs: {}, agentDefaultEnv: {} }
     const deps = await installedDeps(settings)
+    await expect(deps.assertExecutionAllowed(agentSessionRecordFixture())).resolves.toBeUndefined()
     settings.sbx.enabled = true
-    expect(() => deps.resolveLaunchArgs('claude')).toThrow('Sandbox execution is enabled')
-    expect(() => deps.resolveLaunchArgs('codex')).toThrow('Sandbox execution is enabled')
+    await expect(deps.assertExecutionAllowed(agentSessionRecordFixture())).rejects.toThrow(
+      'Sandbox execution is enabled'
+    )
   })
 
   it('resolves Claude launch args from the Claude agent defaults, not Codex flags', async () => {

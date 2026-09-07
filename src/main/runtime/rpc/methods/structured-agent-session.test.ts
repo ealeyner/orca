@@ -11,6 +11,7 @@ import {
   type StructuredAgentSessionStatusSubscriber
 } from '../../../native-chat/agent-session-wire/structured-agent-session-status-feed'
 import {
+  STRUCTURED_SANDBOX_RUNTIME_CAPABILITY,
   RUNTIME_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION,
   STRUCTURED_AGENT_SESSION_HOLD_RUNTIME_CAPABILITY,
@@ -254,6 +255,70 @@ afterEach(() => {
 })
 
 describe('capability gating', () => {
+  it('requires sandbox capability before provisioning for a paired client', async () => {
+    const runtime = { getClientSettings: () => ({ sbx: { enabled: true } }) }
+    const params = {
+      envelope: envelope({ expectedRuntimeFence: null }),
+      worktree: 'id:workspace-1',
+      agent: 'codex'
+    }
+    const refused = await call('agentSession.create', params, STRUCTURED_CLIENT, runtime)
+    expect(refused).toMatchObject({
+      ok: true,
+      result: { ok: false, refusal: { code: 'structured_agent_session_unsupported' } }
+    })
+    expect(runtimeCalls.resolveStructuredAgentSessionCreateIntent).not.toHaveBeenCalled()
+    const support = await call(
+      'agentSession.createSupport',
+      { worktree: params.worktree, agent: params.agent },
+      STRUCTURED_CLIENT,
+      runtime
+    )
+    expect(support).toMatchObject({ ok: true, result: { supported: false } })
+    expect(runtimeCalls.getStructuredAgentSessionCreateSupport).not.toHaveBeenCalled()
+    const capable = {
+      ...STRUCTURED_CLIENT,
+      clientCapabilities: [
+        ...STRUCTURED_CLIENT.clientCapabilities,
+        STRUCTURED_SANDBOX_RUNTIME_CAPABILITY
+      ]
+    }
+    const supported = await call(
+      'agentSession.createSupport',
+      { worktree: params.worktree, agent: params.agent },
+      capable,
+      runtime
+    )
+    expect(supported).toMatchObject({ ok: true, result: { supported: true } })
+  })
+
+  it('preserves sandbox identity on capable attach and rejects older clients', async () => {
+    const params = attachParams()
+    const sandboxParams = {
+      ...params,
+      location: {
+        ...params.location,
+        sandbox: { kind: 'docker-sandbox', id: 'immutable-id', name: 'orca-test' }
+      }
+    }
+    const refused = await call('agentSession.ensure', sandboxParams, STRUCTURED_CLIENT)
+    expect(refused).toMatchObject({ ok: false })
+    expect(hostCalls.attach).not.toHaveBeenCalled()
+    const capable = {
+      ...STRUCTURED_CLIENT,
+      clientCapabilities: [
+        ...STRUCTURED_CLIENT.clientCapabilities,
+        STRUCTURED_SANDBOX_RUNTIME_CAPABILITY
+      ]
+    }
+    const accepted = await call('agentSession.ensure', sandboxParams, capable)
+    expect(accepted).toMatchObject({ ok: true })
+    expect(hostCalls.attach).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ location: sandboxParams.location })
+    )
+  })
+
   it('clears durable tab visibility when closing through the agent-session RPC', async () => {
     const response = await call('agentSession.close', { sessionId: SESSION }, STRUCTURED_CLIENT)
 

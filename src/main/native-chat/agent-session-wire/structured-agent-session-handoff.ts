@@ -69,6 +69,15 @@ export class StructuredAgentSessionHandoffCoordinator {
     params: AgentSessionHandoffRequest
   ): Promise<AgentSessionMutationResult<AgentSessionHandoffResult>> {
     const record = this.requireRecord(params.envelope.sessionId)
+    if (record.location.sandbox) {
+      return {
+        ok: false,
+        refusal: refusal(
+          'structured_agent_session_unsupported',
+          'Sandbox native/terminal handoff is not available yet.'
+        )
+      }
+    }
     const currentStatus = this.state.cachedStatus(record.sessionId)
     const admission = await admitStructuredHandoffRequest({
       deps: this.deps,

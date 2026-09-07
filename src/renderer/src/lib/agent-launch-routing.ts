@@ -1,7 +1,10 @@
 import type { GlobalSettings } from '../../../shared/global-settings-types'
 import type { ProjectExecutionRuntimeResolution } from '../../../shared/project-execution-runtime'
 import { isAgentSessionHandleProvider } from '../../../shared/agent-session-provider-handle'
-import { STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY } from '../../../shared/protocol-version'
+import {
+  STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY,
+  STRUCTURED_SANDBOX_RUNTIME_CAPABILITY
+} from '../../../shared/protocol-version'
 import type { TuiAgent } from '../../../shared/tui-agent'
 import {
   getTuiAgentDefaultArgs,
@@ -72,9 +75,6 @@ export function hasExplicitTuiAgentArgs(
 }
 
 export function resolveAgentLaunchRoute(input: AgentLaunchRoutingInput): AgentLaunchRoute {
-  if (input.settings?.sbx?.enabled) {
-    return 'terminal-tui'
-  }
   const initialViewMode = decideInitialAgentTabViewMode({
     experimentalNativeChat: input.settings?.experimentalNativeChat,
     openAgentTabsInChatByDefault: input.settings?.openAgentTabsInChatByDefault,
@@ -87,7 +87,7 @@ export function resolveAgentLaunchRoute(input: AgentLaunchRoutingInput): AgentLa
     return 'terminal-tui'
   }
   if (input.settings?.experimentalStructuredNativeChat !== true) {
-    return 'legacy-native-chat'
+    return input.settings?.sbx?.enabled ? 'terminal-tui' : 'legacy-native-chat'
   }
 
   const projectRuntime = input.projectRuntime
@@ -97,6 +97,8 @@ export function resolveAgentLaunchRoute(input: AgentLaunchRoutingInput): AgentLa
     input.initialSessionOptions && Object.keys(input.initialSessionOptions).length > 0
   )
   const structuredSupported =
+    (!input.settings?.sbx?.enabled ||
+      input.hostCapabilities.includes(STRUCTURED_SANDBOX_RUNTIME_CAPABILITY)) &&
     isAgentSessionHandleProvider(input.agent) &&
     input.promptDelivery !== 'draft' &&
     input.workspaceKind !== 'floating' &&
@@ -110,5 +112,9 @@ export function resolveAgentLaunchRoute(input: AgentLaunchRoutingInput): AgentLa
     !runtimeRefused &&
     input.hostCapabilities.includes(STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY)
 
-  return structuredSupported ? 'structured-native-chat' : 'legacy-native-chat'
+  return structuredSupported
+    ? 'structured-native-chat'
+    : input.settings?.sbx?.enabled
+      ? 'terminal-tui'
+      : 'legacy-native-chat'
 }

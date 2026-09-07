@@ -1,3 +1,4 @@
+import { SbxName } from '../../../../shared/sbx-types'
 // Wire validation for `agentSession.*`.
 //
 // Strict objects throughout: zod drops unknown keys, and a silently dropped key
@@ -71,7 +72,15 @@ const ExecutionLocation = z
     executionHostId: ExecutionHostId,
     wslDistro: Identifier('Invalid WSL distro').nullable(),
     workspaceId: Identifier('Invalid workspace id'),
-    workspaceKind: z.enum(['git-worktree', 'folder'])
+    workspaceKind: z.enum(['git-worktree', 'folder']),
+    sandbox: z
+      .object({
+        kind: z.literal('docker-sandbox'),
+        id: Identifier('Invalid sandbox id'),
+        name: SbxName
+      })
+      .strict()
+      .optional()
   })
   .strict()
 

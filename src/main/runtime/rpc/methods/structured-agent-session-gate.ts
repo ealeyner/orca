@@ -1,3 +1,4 @@
+import { STRUCTURED_SANDBOX_RUNTIME_CAPABILITY } from '../../../../shared/protocol-version'
 // Who may see `agentSession.*` at all.
 //
 // Shared by every structured method file so one gate governs the whole surface: a client that does
@@ -54,5 +55,18 @@ export async function ensureStructuredHostInstalled(ctx: RpcContext): Promise<vo
 export function structuredCallerFor(ctx: RpcContext): StructuredAgentSessionCaller {
   return {
     callerKey: ctx.clientId?.trim() || `trusted-local:${ctx.clientKind ?? 'runtime'}`
+  }
+}
+
+export function supportsSandboxStructuredSessions(ctx: RpcContext): boolean {
+  return (
+    ctx.clientKind === undefined ||
+    ctx.clientCapabilities?.includes(STRUCTURED_SANDBOX_RUNTIME_CAPABILITY) === true
+  )
+}
+
+export function requireSandboxStructuredCapability(ctx: RpcContext): void {
+  if (!supportsSandboxStructuredSessions(ctx)) {
+    throw new Error('structured_agent_session_unsupported')
   }
 }

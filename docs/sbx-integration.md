@@ -41,8 +41,9 @@ records the immutable sandbox ID and owning host. A same-name replacement is nev
 silently adopted. Concurrent creation for one pane is coalesced. Agent sandboxes
 remain available after terminal closure and can be removed explicitly from the IDE.
 
-Structured native chat is refused when sandbox execution is enabled, so it cannot
-bypass the terminal execution boundary. New agent tabs use their terminal interface.
+With structured native chat enabled, local Claude and Codex tabs create a sandbox
+and use the guest provider protocol. Existing host sessions cannot launch while
+sandbox execution is enabled. Unsupported launch configurations remain terminal-backed.
 
 `ORCA_SBX_BINARY` optionally selects an alternate local sbx executable. SSH operations
 resolve `sbx` on the remote host; a client executable path is never sent remotely.
@@ -73,8 +74,8 @@ a remote host to focus its desktop window. Open the corresponding workspace in
 Orca before attaching. Remote host routing and loss-of-contact behavior have unit
 coverage; a live SSH/Windows Docker installation has not been exercised.
 
-Docker's native agent authentication and TUI remain inside the sandbox. Orca's
-host-only structured chat providers are disabled while sandbox mode is enabled.
+Docker's agent authentication remains inside the sandbox. Native chat uses the
+pinned guest account root; it does not forward host account credentials.
 Host hooks and host-local transcript discovery are not bridged into the guest.
 This integration does not offer administrator-enforced restrictions on the Orca
 user themselves: sandbox creation defaults can be changed by that user. Use Docker
@@ -82,20 +83,13 @@ governance profiles for centrally enforced policy.
 
 ### Native provider work still required
 
-Durable sandbox identity, guest-aware recovery, and Codex native acquisition are
-implemented. Before enabling native structured chat in the IDE:
+Durable sandbox identity, guest-aware recovery, account-root provisioning, and native
+Claude/Codex acquisition are connected to local IDE creation. Remaining work:
 
-- Provision and pin the guest account root when creating a native session.
-- Resolve provider handles and transcript proofs inside that pinned sandbox.
-- Connect guest provisioning and native session creation in the IDE.
-- Distinguish a lost sbx transport from proven guest process exit during close,
-  crash recovery, and native/TUI handoff. `sbx-lifecycle.ts` supplies identity checks
-  and post-operation sandbox state verification for that boundary.
-- Reuse `sbx-agent-sandbox.ts` for provisioning rather than creating a separate
-  sandbox ownership scheme for native sessions.
-- Exercise approvals, cancellation, resume, and crash recovery through native UI
-  tests and live guest processes before removing the host-provider launch guard.
-
+- Guest transcript access for terminal/native continuity.
+- Native/terminal handoff within the same guest (currently refused).
+- Broader native UI coverage of approvals, cancellation, resume, and crash recovery.
+- Live remote and Windows verification.
 
 The Codex guest transport is now implemented in `sbx-codex-connection.ts` and
 verified against a real Docker sandbox: initialization, model discovery, and
@@ -110,7 +104,6 @@ To repeat the opt-in transport check, create and stop a disposable Codex sandbox
 then set `ORCA_SBX_NATIVE_SMOKE=1` and `ORCA_SBX_NATIVE_SMOKE_NAME` to its name while
 running `src/main/sbx/sbx-codex-connection.live.test.ts` with Vitest. The test stops
 but does not remove that sandbox. Normal test runs skip the live check.
-
 
 The Claude SDK guest transport is implemented in `sbx-claude-connection.ts` and
 verified with a live sandbox through SDK initialization, model discovery, and
@@ -132,8 +125,7 @@ separate host workspaces and each immutable guest ID. Store reopen tests cover t
 identity. Sandbox owner probes require transport-exit proof followed by inventory proof that
 the pinned guest ID is stopped or absent. A running guest, a failed inventory read,
 or another execution host stays fenced. Batch recovery uses the same checks. Guest
-transcript resolution and native IDE session creation still need work.
-
+transcript resolution still needs work; native IDE creation is connected.
 
 `sbx-codex-acquisition.live.test.ts` exercises native acquisition, submission, close,
 and resume in a disposable guest. Set the same opt-in variables plus
@@ -142,7 +134,6 @@ it requires confirmed cancellation before resuming the same thread. Sandbox
 cancellation stops the entire per-agent guest and enters session recovery, rather
 than treating host process enumeration as proof that guest tools exited.
 An empty Codex thread is not persisted until its first turn.
-
 
 Claude native acquisition now routes sandbox records through the guest SDK, pins
 `CLAUDE_CONFIG_DIR` in the guest, and keeps host transcript readers out of guest
@@ -160,8 +151,7 @@ Repeat `sbx-claude-acquisition.live.test.ts` with `ORCA_SBX_NATIVE_SMOKE=1`,
 `ORCA_SBX_CLAUDE_SMOKE_NAME`, and `ORCA_SBX_CLAUDE_CONFIG_DIR` set for a stopped,
 disposable guest. The test proves the requested session identity and shutdown;
 Claude turn submission, cancellation, shutdown, and branch-preserving resume also
-pass in this live check. Native IDE interaction still needs end-to-end coverage.
-
+pass in this live check. Claude-specific native IDE coverage still needs expansion.
 
 Native creation preparation now reuses `ensureSbxAgentSandbox` and each agent's
 launch policy. It discovers the account root inside the guest, proves inspection
@@ -169,6 +159,20 @@ shutdown, and persists the account pin alongside the immutable binding. Retries
 reuse a live pinned guest without stopping it, and a deleted pinned guest is not
 silently recreated. Unproven inspection cleanup remains retryable. The runtime's
 create-intent resolver consumes this prepared identity without touching host
-accounts; native-chat availability remains guarded pending full IDE integration.
+accounts. Native-chat availability requires the sandbox runtime capability.
 `sbx-native-session-preparation.live.test.ts` (`ORCA_SBX_PREPARATION_SMOKE=1`) covers
 real provisioning, account pinning, retries, deletion, and refusal to recreate.
+
+### Native IDE verification
+
+`sbx-native-chat.spec.ts` runs a hidden Electron app through the real desktop IPC,
+provisioning, pinned records, sbx transport, and native journal/rendering path. A
+scripted Codex app-server supplies a deterministic reply, and the test verifies the
+managed guest appears in Settings. This complements the separate live guest tests;
+it does not establish Docker VM isolation by itself.
+
+Both desktop IPC calls and subscriptions advertise `agent-session.structured.sandbox.v1`.
+Older paired clients cannot create or attach sandbox native sessions. Before every
+provider acquisition, record-scoped policy verifies the immutable guest/account
+binding and agent permission. Disabling global sandbox defaults never converts an
+existing guest session into a host session.

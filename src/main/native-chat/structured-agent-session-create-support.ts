@@ -1,3 +1,4 @@
+import { DEFAULT_SBX_POLICY, SbxLaunchPolicySchema, type SbxSettings } from '../../shared/sbx-types'
 import type { AgentSessionExecutionLocation } from '../../shared/agent-session-record'
 import { LOCAL_EXECUTION_HOST_ID } from '../../shared/execution-host'
 import {
@@ -17,6 +18,7 @@ export type StructuredAgentSessionCreateSupport = {
  * however wrong it was. The runtime hands over the two facts it owns and this decides.
  */
 export function resolveStructuredAgentSessionCreateSupport(input: {
+  sandboxPolicy?: SbxSettings
   agent: 'claude' | 'codex'
   location: AgentSessionExecutionLocation
   adapterSupportsCreate: boolean
@@ -32,6 +34,14 @@ export function resolveStructuredAgentSessionCreateSupport(input: {
             ? 'wsl'
             : 'agent'
     }
+  }
+  if (input.sandboxPolicy?.enabled) {
+    const policy = SbxLaunchPolicySchema.safeParse(
+      input.sandboxPolicy.agents?.[input.agent] ?? DEFAULT_SBX_POLICY
+    )
+    return policy.success && policy.data.enabled
+      ? { supported: true }
+      : { supported: false, reason: 'agent' }
   }
   // Claude only: Codex resolves its account on a different path, so its answer is untouched here.
   // `wsl` is the closest existing reason — the cause is a WSL-bound account rather than a WSL

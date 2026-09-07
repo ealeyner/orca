@@ -1,3 +1,4 @@
+import type { AgentSessionRecord } from '../../shared/agent-session-record'
 import { posix } from 'node:path'
 import type { SbxNativeTarget } from '../sbx/sbx-native-reservation'
 import { createHash } from 'node:crypto'
@@ -129,6 +130,7 @@ export type ClaudeStructuredLaunch = {
 }
 
 export type ClaudeStructuredLaunchResolverDeps = {
+  assertExecutionAllowed?: (record: AgentSessionRecord) => Promise<void>
   store: AgentSessionRecordStore
   resolveWorkspacePath: (workspaceId: string) => Promise<string>
   resolveCommand?: () => string
@@ -181,6 +183,7 @@ export function createClaudeStructuredLaunchResolver(
     if (!record) {
       throw new Error(`no durable agent-session record for ${identity.sessionId}`)
     }
+    await deps.assertExecutionAllowed?.(record)
     if (record.provider !== 'claude') {
       throw new Error(`session ${identity.sessionId} is a ${record.provider} session`)
     }

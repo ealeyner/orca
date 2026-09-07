@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY } from '../../../shared/protocol-version'
+import {
+  STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY,
+  STRUCTURED_SANDBOX_RUNTIME_CAPABILITY
+} from '../../../shared/protocol-version'
 import {
   hasExplicitTuiAgentArgs,
   hasExplicitTuiLaunchCustomization,
@@ -27,8 +30,29 @@ function route(overrides: Partial<Parameters<typeof resolveAgentLaunchRoute>[0]>
 }
 
 describe('resolveAgentLaunchRoute', () => {
+  it.each(['claude', 'codex'] as const)('opens %s natively with sandbox capability', (agent) => {
+    const sandboxSettings = { ...settings, sbx: { enabled: true } }
+    const hostCapabilities = [
+      STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY,
+      STRUCTURED_SANDBOX_RUNTIME_CAPABILITY
+    ]
+    expect(route({ agent, settings: sandboxSettings, hostCapabilities })).toBe(
+      'structured-native-chat'
+    )
+    for (const overrides of [
+      { requiresTuiLaunchCustomization: true },
+      { executionHostId: 'ssh:host-a' },
+      { promptDelivery: 'draft' as const },
+      { settings: { ...sandboxSettings, experimentalStructuredNativeChat: false } }
+    ]) {
+      expect(route({ agent, settings: sandboxSettings, hostCapabilities, ...overrides })).toBe(
+        'terminal-tui'
+      )
+    }
+  })
+
   it.each(['claude', 'codex'] as const)(
-    'routes %s through a sandbox terminal when enabled',
+    'keeps %s sandbox launches terminal-backed on older runtimes',
     (agent) => {
       expect(route({ agent, settings: { ...settings, sbx: { enabled: true } } })).toBe(
         'terminal-tui'

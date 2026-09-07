@@ -136,6 +136,25 @@ describe('registerRuntimeHandlers', () => {
     })
   })
 
+  it('advertises sandbox chat support for same-build desktop RPC calls', async () => {
+    const runtime = {
+      getRuntimeId: () => 'runtime-1',
+      getClientSettings: () => ({ sbx: { enabled: true } }),
+      getStructuredAgentSessionCreateSupport: vi.fn(async () => ({ supported: true }))
+    }
+    registerRuntimeHandlers(runtime as never)
+    const handler = handleMock.mock.calls.find(([channel]) => channel === 'runtime:call')![1]
+    const result = await handler(runtimeCallEvent(), {
+      method: 'agentSession.createSupport',
+      params: { worktree: 'id:workspace-1', agent: 'codex' }
+    })
+    expect(result).toMatchObject({ ok: true, result: { supported: true } })
+    expect(runtime.getStructuredAgentSessionCreateSupport).toHaveBeenCalledWith(
+      'id:workspace-1',
+      'codex'
+    )
+  })
+
   it('projects Claude structured tabs to the same-version desktop client', async () => {
     const claudeTab = {
       type: 'agent-session',

@@ -19,6 +19,7 @@ import type { ClaudeManagedAccountGateSettings } from '../native-chat/claude-str
 import type { AgentSessionRecordStore } from './agent-session-record-store'
 
 export type StructuredClaudeRuntimeAdapterDeps = {
+  assertExecutionAllowed?: (record: AgentSessionRecord) => Promise<void>
   store: AgentSessionRecordStore
   resolveWorkspacePath: (workspaceId: string) => Promise<string>
   resolveClaudeCommand?: () => string
@@ -43,6 +44,7 @@ export function createStructuredClaudeRuntimeAdapter(
   return new ClaudeStructuredSessionAdapter({
     resolveLaunch: createClaudeStructuredLaunchResolver({
       store,
+      assertExecutionAllowed: deps.assertExecutionAllowed,
       resolveWorkspacePath: deps.resolveWorkspacePath,
       resolveCommand: deps.resolveClaudeCommand ?? resolveClaudeCommand,
       ...(deps.resolveClaudeLaunchEnv ? { resolveEnv: deps.resolveClaudeLaunchEnv } : {}),

@@ -1,3 +1,4 @@
+import { DEFAULT_SBX_POLICY } from '../../shared/sbx-types'
 import { describe, expect, it } from 'vitest'
 import type { AgentSessionExecutionLocation } from '../../shared/agent-session-record'
 import type { ClaudeManagedAccountGateSettings } from './claude-structured-managed-account-support'
@@ -48,6 +49,32 @@ function support(
 }
 
 describe('resolveStructuredAgentSessionCreateSupport', () => {
+  it('uses sandbox account isolation without consulting host account settings', () => {
+    expect(
+      support({
+        sandboxPolicy: { enabled: true },
+        getSettings: () => {
+          throw new Error('host account unavailable')
+        }
+      })
+    ).toEqual({ supported: true })
+    expect(
+      support({
+        sandboxPolicy: {
+          enabled: true,
+          agents: { claude: { ...DEFAULT_SBX_POLICY, enabled: false } }
+        }
+      })
+    ).toEqual({ supported: false, reason: 'agent' })
+    expect(
+      support({
+        sandboxPolicy: { enabled: true },
+        adapterSupportsCreate: false,
+        location: { ...LOCAL, executionHostId: 'ssh:host-a' }
+      })
+    ).toEqual({ supported: false, reason: 'remote' })
+  })
+
   it('supports Claude under a selected host account', () => {
     expect(support()).toEqual({ supported: true })
   })

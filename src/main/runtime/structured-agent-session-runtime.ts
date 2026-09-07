@@ -50,6 +50,7 @@ export function hasPersistedStructuredAgentSessionStore(
 }
 
 export type StructuredAgentSessionRuntimeDeps = {
+  assertExecutionAllowed?: (record: AgentSessionRecord) => Promise<void>
   /** Host state root. The record store and the journal tree both hang off it. */
   stateDirectory: string
   /** Execution host this runtime *is*. A record pinned elsewhere is not ours to
@@ -213,6 +214,7 @@ async function install(deps: StructuredAgentSessionRuntimeDeps): Promise<Install
     const codex = new CodexStructuredSessionAdapter({
       resolveLaunch: createCodexStructuredLaunchResolver({
         store,
+        assertExecutionAllowed: deps.assertExecutionAllowed,
         resolveWorkspacePath: deps.resolveWorkspacePath,
         resolveEnvironment: resolveCodexEnvironment,
         ...(deps.resolveCodexCommand ? { resolveCommand: deps.resolveCodexCommand } : {})
@@ -237,6 +239,7 @@ async function install(deps: StructuredAgentSessionRuntimeDeps): Promise<Install
     })
     const claude = createStructuredClaudeRuntimeAdapter({
       store,
+      assertExecutionAllowed: deps.assertExecutionAllowed,
       resolveWorkspacePath: deps.resolveWorkspacePath,
       ...(deps.resolveClaudeCommand ? { resolveClaudeCommand: deps.resolveClaudeCommand } : {}),
       ...(deps.resolveClaudeLaunchEnv
