@@ -1,11 +1,10 @@
+import { requestClaudeSessionInitialization } from './claude-structured-session-initialization'
 import { openSbxClaudeConnection, SbxClaudeStartUnprovenError } from '../sbx/sbx-claude-connection'
 import {
   AgentSessionAcquisitionExitUnprovenError,
-  AgentSessionPreSpawnError
-} from '../native-chat/agent-session-wire/structured-agent-session-adapter'
-import type {
-  AgentSessionAcquisition,
-  StructuredAgentSessionAcquireInput
+  AgentSessionPreSpawnError,
+  type AgentSessionAcquisition,
+  type StructuredAgentSessionAcquireInput
 } from '../native-chat/agent-session-wire/structured-agent-session-adapter'
 import { CLAUDE_AUTH_SWITCH_IN_PROGRESS_MESSAGE } from '../claude-accounts/environment'
 import { isClaudeAuthSwitchInProgress } from '../claude-accounts/live-pty-gate'
@@ -19,10 +18,7 @@ import {
   readClaudeInit,
   readClaudeModels
 } from './claude-structured-init-proof'
-import {
-  createClaudeInitDeadline,
-  requestClaudeInitialization
-} from './claude-structured-init-deadline'
+import { createClaudeInitDeadline } from './claude-structured-init-deadline'
 import { claudeConfigDirEnvPatch } from './claude-config-dir-pin'
 import { CLAUDE_SPAWN_TOKEN_ENV, claudeProcessIdentity } from './claude-structured-owner-identity'
 import {
@@ -227,7 +223,13 @@ export async function acquireClaudeSession({
     acquisitions.assertCurrent(sessionId, attempt)
     initDeadline.start()
     const [initialization, init] = await Promise.all([
-      requestClaudeInitialization(connection, sessionId, initTimeoutMs),
+      requestClaudeSessionInitialization({
+        connection,
+        sessionId,
+        timeoutMs: initTimeoutMs,
+        launch,
+        deadline: initDeadline
+      }),
       initDeadline.promise
     ])
     const models = readClaudeModels(initialization)
