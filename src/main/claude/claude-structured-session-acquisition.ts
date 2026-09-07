@@ -1,3 +1,4 @@
+import { openSbxClaudeConnection, SbxClaudeStartUnprovenError } from '../sbx/sbx-claude-connection'
 import {
   AgentSessionAcquisitionExitUnprovenError,
   AgentSessionPreSpawnError
@@ -178,7 +179,20 @@ export async function acquireClaudeSession({
     observedLeafUuid = launch.resumeLeafUuid
     acquisitions.assertCurrent(sessionId, attempt)
     const open = deps.openConnection ?? openClaudeStreamJsonConnection
-    const connection = await open(
+    const openLaunch: typeof open = launch.sandbox
+      ? (_transport, handlers) =>
+          openSbxClaudeConnection(
+            {
+              ...launch.sandbox!,
+              options: launch.options,
+              claudeConfigDir: launch.claudeConfigDir,
+              transportEnv: { [CLAUDE_SPAWN_TOKEN_ENV]: input.spawnToken }
+            },
+            handlers,
+            open
+          )
+      : open
+    const connection = await openLaunch(
       {
         pathToClaudeCodeExecutable: launch.pathToClaudeCodeExecutable,
         options: launch.options,
@@ -265,6 +279,7 @@ export async function acquireClaudeSession({
     })
     const acquired: AgentSessionAcquisition = publication.acquisition
     liveSession = publication.session
+    liveSession.sandbox = Boolean(launch.sandbox)
     await restoreClaudeStructuredSessionOptions(liveSession, deps.requestTimeoutMs)
     acquisitions.assertCurrent(sessionId, attempt)
     acquisitions.deleteIfCurrent(sessionId, attempt)
@@ -277,20 +292,27 @@ export async function acquireClaudeSession({
   } catch (error) {
     initDeadline.clear()
     let acquisitionError = error
+    let cleanupProven = true
+    if (error instanceof SbxClaudeStartUnprovenError) {
+      attempt.startupCleanup = { close: error.retryShutdown }
+    }
     if (sessions.get(sessionId)?.connection !== attempt.connection) {
       translator?.dispose()
       // Settle any callback that fired before the failure so no SDK promise dangles.
       for (const prompt of prompts.clear()) {
         prompt.settle(null)
       }
-      const closed = (await attempt.connection?.close()) ?? true
+      const closed = (await (attempt.connection ?? attempt.startupCleanup)?.close()) ?? true
+      cleanupProven = closed
       if (attempt.connection?.exitVerdict.root === 'processless') {
         acquisitionError = new AgentSessionPreSpawnError(error)
       } else if (!closed) {
         acquisitionError = claudeAcquisitionCleanupError(attempt.connection, error)
       }
     }
-    acquisitions.deleteIfCurrent(sessionId, attempt)
+    if (cleanupProven) {
+      acquisitions.deleteIfCurrent(sessionId, attempt)
+    }
     throw acquisitionError
   } finally {
     attempt.finish()

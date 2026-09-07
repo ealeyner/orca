@@ -162,14 +162,15 @@ export class ClaudeStructuredSessionAdapter implements StructuredAgentSessionAda
 
   private async persistSessionHandle(sessionId: string, session: ClaudeSession): Promise<void> {
     try {
-      const transcriptLeaf = this.deps.readTranscriptLeaf
-        ? await readClaudeTranscriptLeafWithReproof({
-            readTranscriptLeaf: this.deps.readTranscriptLeaf,
-            providerSessionId: session.providerSessionId,
-            previousLeafUuid: session.leafUuid,
-            claudeConfigDir: session.claudeConfigDir
-          })
-        : null
+      const transcriptLeaf =
+        !session.sandbox && this.deps.readTranscriptLeaf
+          ? await readClaudeTranscriptLeafWithReproof({
+              readTranscriptLeaf: this.deps.readTranscriptLeaf,
+              providerSessionId: session.providerSessionId,
+              previousLeafUuid: session.leafUuid,
+              claudeConfigDir: session.claudeConfigDir
+            })
+          : null
       if (transcriptLeaf) {
         session.leafUuid = transcriptLeaf
       }

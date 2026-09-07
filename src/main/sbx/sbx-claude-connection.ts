@@ -25,7 +25,11 @@ export class SbxClaudeStartUnprovenError extends Error {
 }
 
 export async function openSbxClaudeConnection(
-  input: SbxNativeTarget & { options?: ClaudeStructuredSdkOptions },
+  input: SbxNativeTarget & {
+    options?: ClaudeStructuredSdkOptions
+    claudeConfigDir?: string
+    transportEnv?: Record<string, string>
+  },
   handlers: ClaudeStreamJsonConnectionHandlers = {},
   openConnection = openClaudeStreamJsonConnection,
   spawnImpl = spawnProcess
@@ -42,6 +46,7 @@ export async function openSbxClaudeConnection(
         cwd: input.workspace,
         options: input.options ?? CLAUDE_STRUCTURED_BASE_OPTIONS,
         usesHostCredentials: false,
+        ...(input.transportEnv ? { env: input.transportEnv } : {}),
         confirmExecutionExit: reservation.confirmExecutionExit
       },
       handlers,
@@ -59,6 +64,7 @@ export async function openSbxClaudeConnection(
             input.workspace,
             '--',
             input.name,
+            ...(input.claudeConfigDir ? ['env', `CLAUDE_CONFIG_DIR=${input.claudeConfigDir}`] : []),
             'claude',
             ...(spec.args ?? [])
           ]

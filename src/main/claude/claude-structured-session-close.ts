@@ -81,14 +81,15 @@ async function finalizeClaudePublishedSession(
     input.onBackgroundTasksChanged?.(input.sessionId, null)
   }
   try {
-    const transcriptLeaf = input.readTranscriptLeaf
-      ? await readClaudeTranscriptLeafWithReproof({
-          readTranscriptLeaf: input.readTranscriptLeaf,
-          providerSessionId: session.providerSessionId,
-          previousLeafUuid: session.leafUuid,
-          claudeConfigDir: session.claudeConfigDir
-        })
-      : null
+    const transcriptLeaf =
+      !session.sandbox && input.readTranscriptLeaf
+        ? await readClaudeTranscriptLeafWithReproof({
+            readTranscriptLeaf: input.readTranscriptLeaf,
+            providerSessionId: session.providerSessionId,
+            previousLeafUuid: session.leafUuid,
+            claudeConfigDir: session.claudeConfigDir
+          })
+        : null
     if (transcriptLeaf) {
       session.leafUuid = transcriptLeaf
     }

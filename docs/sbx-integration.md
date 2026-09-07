@@ -87,7 +87,7 @@ implemented. Before enabling native structured chat in the IDE:
 
 - Provision and pin the guest account root when creating a native session.
 - Resolve provider handles and transcript proofs inside that pinned sandbox.
-- Wire the verified Claude guest connection into durable session acquisition.
+- Finish Claude idle-session identity proof on the guest CLI before enabling acquisition in the IDE.
 - Distinguish a lost sbx transport from proven guest process exit during close,
   crash recovery, and native/TUI handoff. `sbx-lifecycle.ts` supplies identity checks
   and post-operation sandbox state verification for that boundary.
@@ -131,8 +131,8 @@ sandbox records quarantine version 3 instead of resuming it on the host. Scope k
 separate host workspaces and each immutable guest ID. Store reopen tests cover this
 identity. Sandbox owner probes require transport-exit proof followed by inventory proof that
 the pinned guest ID is stopped or absent. A running guest, a failed inventory read,
-or another execution host stays fenced. Batch recovery uses the same checks. Claude
-acquisition and guest transcript resolution still need to be wired.
+or another execution host stays fenced. Batch recovery uses the same checks. Guest
+transcript resolution and Claude idle-session identity proof still need work.
 
 
 `sbx-codex-acquisition.live.test.ts` exercises native acquisition, submission, close,
@@ -142,3 +142,16 @@ it requires confirmed cancellation before resuming the same thread. Sandbox
 cancellation stops the entire per-agent guest and enters session recovery, rather
 than treating host process enumeration as proof that guest tools exited.
 An empty Codex thread is not persisted until its first turn.
+
+
+Claude native acquisition now routes sandbox records through the guest SDK, pins
+`CLAUDE_CONFIG_DIR` in the guest, and keeps host transcript readers out of guest
+session settlement. Failed SDK startup retains retryable cleanup until exit is
+proved. Resolver/acquisition regression tests pass. The live acquisition test
+(`sbx-claude-acquisition.live.test.ts`, additionally set
+`ORCA_SBX_CLAUDE_CONFIG_DIR`) currently exposes an unresolved startup mismatch:
+template Claude Code 2.1.246 answers SDK control requests but emits neither
+SessionStart nor system/init before Orca's idle-acquisition deadline. Registering
+an SDK SessionStart callback or running the standard Docker agent launcher first
+did not resolve it. Native chat remains guarded;
+control initialization alone is not accepted as session identity proof.

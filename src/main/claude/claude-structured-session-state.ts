@@ -100,6 +100,7 @@ export type ClaudeDispatchWaiter = {
 }
 
 export type ClaudeSession = {
+  sandbox?: boolean
   connection: ClaudeStreamJsonConnection
   providerSessionId: string
   /** Durable transcript files live under this account's `projects` directory. */
@@ -168,6 +169,7 @@ export type ClaudeSessionExit = {
 }
 
 export type ClaudeAcquisitionAttempt = {
+  startupCleanup?: { close: () => Promise<boolean> }
   connection: ClaudeStreamJsonConnection | null
   prompts: ClaudePromptRegistry
   buffered: (() => void)[]
@@ -266,7 +268,7 @@ export async function cancelClaudeAcquisitionAttempt(
     cancel: () => {
       attempt.cancelled = true
     },
-    connection: () => attempt.connection,
+    connection: () => attempt.connection ?? attempt.startupCleanup ?? null,
     exitProven: () => attempt.exitProven,
     finished: attempt.finished
   })

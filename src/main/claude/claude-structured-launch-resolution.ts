@@ -1,3 +1,5 @@
+import { posix } from 'node:path'
+import type { SbxNativeTarget } from '../sbx/sbx-native-reservation'
 import { createHash } from 'node:crypto'
 import type { EffortLevel, Options as ClaudeAgentSdkOptions } from '@anthropic-ai/claude-agent-sdk'
 import type { AgentSessionJournalIdentity } from '../../shared/agent-session-journal-types'
@@ -114,6 +116,7 @@ export function claudeSdkOptionsForLaunchArgs(
 }
 
 export type ClaudeStructuredLaunch = {
+  sandbox?: SbxNativeTarget
   /** Always Orca's resolved user CLI: the SDK's bundled binaries are excluded from the install. */
   pathToClaudeCodeExecutable: string
   options: ClaudeStructuredSdkOptions
@@ -174,7 +177,6 @@ export function createClaudeStructuredLaunchResolver(
   deps: ClaudeStructuredLaunchResolverDeps
 ): (input: { identity: AgentSessionJournalIdentity }) => Promise<ClaudeStructuredLaunch> {
   return async ({ identity }) => {
-    await assertClaudeAuthSwitchSettled(deps.authSwitchSettleTimeoutMs)
     const record = deps.store.getRecord(identity.sessionId)
     if (!record) {
       throw new Error(`no durable agent-session record for ${identity.sessionId}`)
@@ -193,10 +195,14 @@ export function createClaudeStructuredLaunchResolver(
     if (record.accountHome.variable !== 'CLAUDE_CONFIG_DIR') {
       throw new Error(`claude sessions pin CLAUDE_CONFIG_DIR, not ${record.accountHome.variable}`)
     }
+    if (!record.location.sandbox) {
+      await assertClaudeAuthSwitchSettled(deps.authSwitchSettleTimeoutMs)
+    }
     // Every acquisition, not just the first: the account state can change under a live session, and
     // a reacquire after an unexpected exit would otherwise spawn under whatever it has become.
     // Codex has no gate here — it resolves its account on a different path.
     if (
+      !record.location.sandbox &&
       deps.readManagedAccountGate &&
       !structuredClaudeMatchesActiveManagedAccount(deps.readManagedAccountGate())
     ) {
@@ -218,6 +224,37 @@ export function createClaudeStructuredLaunchResolver(
         ? head.handle.sessionId
         : claudeSessionIdForOrcaSession(identity.sessionId)
     const durable = claudeSdkOptionsForLaunchArgs(record.launchArgs ?? [])
+    const options: ClaudeStructuredSdkOptions = {
+      ...durable,
+      ...CLAUDE_STRUCTURED_BASE_OPTIONS,
+      extraArgs: { ...durable.extraArgs, ...CLAUDE_STRUCTURED_BASE_OPTIONS.extraArgs },
+      ...(head?.handle.provider === 'claude'
+        ? {
+            resume: providerSessionId,
+            ...(head.handle.leafUuid === null ? {} : { resumeSessionAt: head.handle.leafUuid })
+          }
+        : { sessionId: providerSessionId })
+    }
+    if (record.location.sandbox) {
+      if (!posix.isAbsolute(record.accountHome.path) || record.accountHome.path.includes('\0')) {
+        throw new Error('sandbox Claude account home must be an absolute guest path')
+      }
+      const cwd = await deps.resolveWorkspacePath(record.location.workspaceId)
+      return {
+        pathToClaudeCodeExecutable: 'claude',
+        options,
+        cwd,
+        claudeConfigDir: record.accountHome.path,
+        providerSessionId,
+        resumeLeafUuid: head?.handle.provider === 'claude' ? head.handle.leafUuid : null,
+        resumed: head?.handle.provider === 'claude',
+        sandbox: {
+          name: record.location.sandbox.name,
+          sandboxId: record.location.sandbox.id,
+          workspace: cwd
+        }
+      }
+    }
     const command = (deps.resolveCommand ?? resolveClaudeCommand)()
     const auth = await deps.resolveAuthPolicy()
     const overlay = await deps.resolveEnv?.()
@@ -251,17 +288,7 @@ export function createClaudeStructuredLaunchResolver(
     )
     return {
       pathToClaudeCodeExecutable: command,
-      options: {
-        ...durable,
-        ...CLAUDE_STRUCTURED_BASE_OPTIONS,
-        extraArgs: { ...durable.extraArgs, ...CLAUDE_STRUCTURED_BASE_OPTIONS.extraArgs },
-        ...(head?.handle.provider === 'claude'
-          ? {
-              resume: providerSessionId,
-              ...(head.handle.leafUuid === null ? {} : { resumeSessionAt: head.handle.leafUuid })
-            }
-          : { sessionId: providerSessionId })
-      },
+      options,
       cwd: await deps.resolveWorkspacePath(record.location.workspaceId),
       env,
       claudeConfigDir: record.accountHome.path,
