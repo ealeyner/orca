@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { expect, it, vi } from 'vitest'
+import { withSbxProviderTranscript } from './sbx-provider-transcript'
 import { withSbxTranscriptSnapshot } from './sbx-transcript-snapshot'
 import { prepareSbxNativeSession } from './sbx-native-session-preparation'
 import { sandboxNameForPane } from './sbx-agent-sandbox'
@@ -69,6 +70,32 @@ it.skipIf(process.env.ORCA_SBX_PREPARATION_SMOKE !== '1')(
         async (path) => {
           const text = await readFile(path, 'utf8')
           expect(text).toBe(`${JSON.stringify({ text: 'sandbox transcript' })}\n`.repeat(90000))
+          expect((await client.list()).find((s) => s.id === prepared.sandbox.id)?.status).toBe(
+            'stopped'
+          )
+        }
+      )
+      const providerPath = `${prepared.accountHome.path}/projects/orca-snapshot/${sessionId}.jsonl`
+      await client.run([
+        'exec',
+        '--',
+        name,
+        'node',
+        '-e',
+        "const fs=require('fs'),path=require('path');fs.mkdirSync(path.dirname(process.argv[1]),{recursive:true});fs.writeFileSync(process.argv[1],[{type:'user',uuid:'guest-leaf',parentUuid:null,sessionId:process.argv[2]},{type:'last-prompt',leafUuid:'guest-leaf',sessionId:process.argv[2]}].map(x=>JSON.stringify(x)).join('\\n')+'\\n')",
+        providerPath,
+        sessionId
+      ])
+      await changeSbxLifecycle({ name, sandboxId: prepared.sandbox.id, action: 'stop' })
+      await withSbxProviderTranscript(
+        {
+          target: { name, sandboxId: prepared.sandbox.id, workspace: input.workspace },
+          provider: 'claude',
+          accountHome: prepared.accountHome.path,
+          providerSessionId: sessionId
+        },
+        async ({ leafUuid }) => {
+          expect(leafUuid).toBe('guest-leaf')
           expect((await client.list()).find((s) => s.id === prepared.sandbox.id)?.status).toBe(
             'stopped'
           )

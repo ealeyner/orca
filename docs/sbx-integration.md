@@ -201,3 +201,11 @@ after stopped-state proof, and temporary files are removed afterward. Individual
 snapshots are limited to 128 MiB. The live preparation test covers a multi-megabyte
 snapshot and checks the guest is stopped before consumption. Provider transcript
 path discovery and handoff consumers still need to be connected to this reader.
+
+`withSbxProviderTranscript` discovers Claude project transcripts and Codex dated
+rollouts inside the pinned guest account, refusing missing or ambiguous matches.
+It snapshots the selected file and reuses the existing Codex session-meta reader
+or Claude main-branch proof before invoking a consumer. Filename matches do not
+establish provider identity. The live preparation test also exercises guest Claude
+discovery and branch proof on a synthetic transcript. Handoff consumers are not yet
+connected to this provider-aware reader.
