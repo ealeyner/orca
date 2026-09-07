@@ -192,3 +192,12 @@ It rejects overlapping reads, withholds results until shutdown proof succeeds, a
 retains unsuccessful cleanup for retry before another inspection or preparation.
 Native account-root preparation uses this path. Guest transcript acquisition can
 reuse it without treating stopped-guest filesystem access as passive.
+
+`withSbxTranscriptSnapshot` now supplies a private temporary host JSONL snapshot
+from a known path under the pinned guest account. Reads use 256 KiB chunks, verify
+file identity/version across chunks and immutable sandbox identity around each
+command, and reject symlinks escaping the account root. The consumer runs only
+after stopped-state proof, and temporary files are removed afterward. Individual
+snapshots are limited to 128 MiB. The live preparation test covers a multi-megabyte
+snapshot and checks the guest is stopped before consumption. Provider transcript
+path discovery and handoff consumers still need to be connected to this reader.

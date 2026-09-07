@@ -1,8 +1,9 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { expect, it, vi } from 'vitest'
+import { withSbxTranscriptSnapshot } from './sbx-transcript-snapshot'
 import { prepareSbxNativeSession } from './sbx-native-session-preparation'
 import { sandboxNameForPane } from './sbx-agent-sandbox'
 import { readSbxBinding } from './sbx-bindings'
@@ -45,6 +46,33 @@ it.skipIf(process.env.ORCA_SBX_PREPARATION_SMOKE !== '1')(
       })
       expect((await new SbxClient().list()).find((s) => s.id === prepared.sandbox.id)?.status).toBe(
         'stopped'
+      )
+      const client = new SbxClient()
+      const transcriptPath = `${prepared.accountHome.path}/orca-snapshot-smoke.jsonl`
+      await client.run([
+        'exec',
+        '--',
+        name,
+        'node',
+        '-e',
+        "require('fs').writeFileSync(process.argv[1],(JSON.stringify({text:'sandbox transcript'})+'\\n').repeat(90000))",
+        transcriptPath
+      ])
+      await changeSbxLifecycle({ name, sandboxId: prepared.sandbox.id, action: 'stop' })
+      await withSbxTranscriptSnapshot(
+        {
+          target: { name, sandboxId: prepared.sandbox.id, workspace: input.workspace },
+          provider: 'claude',
+          accountHome: prepared.accountHome.path,
+          transcriptPath
+        },
+        async (path) => {
+          const text = await readFile(path, 'utf8')
+          expect(text).toBe(`${JSON.stringify({ text: 'sandbox transcript' })}\n`.repeat(90000))
+          expect((await client.list()).find((s) => s.id === prepared.sandbox.id)?.status).toBe(
+            'stopped'
+          )
+        }
       )
       expect(await prepareSbxNativeSession(input)).toEqual(prepared)
       await changeSbxLifecycle({ name, sandboxId: prepared.sandbox.id, action: 'remove' })
