@@ -159,4 +159,16 @@ transcript or credential access.
 Repeat `sbx-claude-acquisition.live.test.ts` with `ORCA_SBX_NATIVE_SMOKE=1`,
 `ORCA_SBX_CLAUDE_SMOKE_NAME`, and `ORCA_SBX_CLAUDE_CONFIG_DIR` set for a stopped,
 disposable guest. The test proves the requested session identity and shutdown;
-Claude conversation resume and native IDE interaction still need live coverage.
+Claude turn submission, cancellation, shutdown, and branch-preserving resume also
+pass in this live check. Native IDE interaction still needs end-to-end coverage.
+
+
+Native creation preparation now reuses `ensureSbxAgentSandbox` and each agent's
+launch policy. It discovers the account root inside the guest, proves inspection
+shutdown, and persists the account pin alongside the immutable binding. Retries
+reuse a live pinned guest without stopping it, and a deleted pinned guest is not
+silently recreated. Unproven inspection cleanup remains retryable. The runtime's
+create-intent resolver consumes this prepared identity without touching host
+accounts; native-chat availability remains guarded pending full IDE integration.
+`sbx-native-session-preparation.live.test.ts` (`ORCA_SBX_PREPARATION_SMOKE=1`) covers
+real provisioning, account pinning, retries, deletion, and refusal to recreate.

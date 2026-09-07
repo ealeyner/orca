@@ -1,4 +1,5 @@
 // @ts-nocheck -- mechanically split from OrcaRuntimeService; behavior is covered by AST equivalence and characterization tests.
+import { prepareSbxNativeSession } from '../sbx/sbx-native-session-preparation'
 import { OrcaRuntimeWithStopStructuredSessionProcess } from './orca-runtime-stop-structured-session-process'
 import type { AgentSessionOwnerBinding } from '../../shared/agent-session-host-authority'
 import { agentSessionOwnerBindingsEqual } from '../../shared/claimed-agent-pty-owner-snapshot'
@@ -163,9 +164,25 @@ export class OrcaRuntimeWithResolveRecoveredStructuredTuiTranscript extends Orca
       throw new Error('structured_agent_session_unsupported')
     }
     const settings = this.requireStore().getSettings()
-    const launchEnv = resolveTuiAgentLaunchEnv(input.agent, settings.agentDefaultEnv)
     const location = await this.resolveStructuredAgentSessionLocation(input.worktree)
     const workspacePath = (await this.resolveRuntimeFileTarget(input.worktree)).worktree.path
+    if (
+      settings.sbx?.enabled &&
+      (location.executionHostId !== LOCAL_EXECUTION_HOST_ID || location.wslDistro)
+    ) {
+      throw new Error('Native sandbox creation must run on the owning host.')
+    }
+    const prepared = settings.sbx?.enabled
+      ? await prepareSbxNativeSession({
+          sessionId: input.envelope.sessionId,
+          provider: input.agent,
+          workspace: workspacePath,
+          settings: settings.sbx
+        })
+      : null
+    const launchEnv = prepared
+      ? {}
+      : resolveTuiAgentLaunchEnv(input.agent, settings.agentDefaultEnv)
     return {
       envelope: {
         sessionId: input.envelope.sessionId,
@@ -173,10 +190,10 @@ export class OrcaRuntimeWithResolveRecoveredStructuredTuiTranscript extends Orca
         expectedRuntimeFence: null,
         payloadFingerprint: ''
       },
-      location,
+      location: prepared ? { ...location, sandbox: prepared.sandbox } : location,
       provider: input.agent,
       agent: input.agent,
-      accountHome: {
+      accountHome: prepared?.accountHome ?? {
         variable: input.agent === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME',
         path: await resolveAccountHomePath({ workspacePath, launchEnv, location })
       },

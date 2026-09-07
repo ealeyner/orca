@@ -3,7 +3,7 @@ import type { SBX_AGENTS, SbxLaunchPolicy } from '../../shared/sbx-types'
 import { SbxClient } from './sbx-client'
 import { readSbxBinding, saveSbxBinding } from './sbx-bindings'
 
-const pending = new Map<string, Promise<void>>()
+const pending = new Map<string, Promise<boolean>>()
 
 export function sandboxNameForPane(agent: string, identity: string): string {
   return `orca-${agent}-${createHash('sha256').update(identity).digest('hex').slice(0, 20)}`
@@ -17,7 +17,7 @@ export async function ensureSbxAgentSandbox(input: {
   paneIdentity: string
   policy: SbxLaunchPolicy
   connectionId?: string | null
-}): Promise<void> {
+}): Promise<boolean> {
   const { name, agent, sandboxAgent, workspace, paneIdentity, policy, connectionId } = input
   const client = new SbxClient(connectionId ?? undefined)
   const key = `${connectionId ?? 'local'}:${name}`
@@ -35,7 +35,7 @@ export async function ensureSbxAgentSandbox(input: {
         if (existing.agent !== sandboxAgent || !existing.workspaces.includes(workspace)) {
           throw new Error('Sandbox identity conflicts with this agent workspace.')
         }
-        return
+        return false
       }
       const created = await client.create({
         ...policy,
@@ -51,11 +51,12 @@ export async function ensureSbxAgentSandbox(input: {
         paneIdentity,
         connectionId: connectionId ?? null
       })
+      return true
     })()
     pending.set(key, provisioning)
   }
   try {
-    await provisioning
+    return await provisioning
   } finally {
     if (pending.get(key) === provisioning) {
       pending.delete(key)

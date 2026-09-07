@@ -12,7 +12,17 @@ const BindingSchema = z.object({
   agent: z.string(),
   workspace: z.string(),
   paneIdentity: z.string(),
-  connectionId: z.string().nullable()
+  connectionId: z.string().nullable(),
+  nativeAccountHome: z
+    .object({
+      variable: z.enum(['CLAUDE_CONFIG_DIR', 'CODEX_HOME']),
+      path: z
+        .string()
+        .min(1)
+        .max(4096)
+        .refine((value) => value.startsWith('/') && !/[\0\r\n]/.test(value))
+    })
+    .optional()
 })
 export type SbxBinding = z.infer<typeof BindingSchema>
 
