@@ -186,3 +186,9 @@ A live probe on the validated sbx build showed that `sbx cp` from a stopped gues
 starts that guest, just like `sbx exec`. Guest transcript collection must therefore
 hold execution ownership and prove shutdown after any stopped-guest inspection;
 copying alone is not a passive read. The disposable probe guest was removed.
+
+`sbx-stopped-inspection.ts` shares native-provider reservations for guest inspection.
+It rejects overlapping reads, withholds results until shutdown proof succeeds, and
+retains unsuccessful cleanup for retry before another inspection or preparation.
+Native account-root preparation uses this path. Guest transcript acquisition can
+reuse it without treating stopped-guest filesystem access as passive.

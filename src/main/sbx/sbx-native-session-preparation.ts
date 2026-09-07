@@ -13,14 +13,13 @@ import { ensureSbxAgentSandbox, sandboxNameForPane } from './sbx-agent-sandbox'
 import { readSbxBinding, saveSbxBinding } from './sbx-bindings'
 import { SbxClient } from './sbx-client'
 import { requireSbxIdentity, stopSbxExecution } from './sbx-lifecycle'
-import { reserveSbxNativeProvider } from './sbx-native-reservation'
+import { inspectStoppedSbx, retrySbxInspectionCleanup } from './sbx-stopped-inspection'
 
 type PreparedNativeSandbox = {
   sandbox: NonNullable<AgentSessionExecutionLocation['sandbox']>
   accountHome: AgentSessionAccountHome
 }
 const pending = new Map<string, { workspace: string; promise: Promise<PreparedNativeSandbox> }>()
-const cleanup = new Map<string, () => Promise<boolean>>()
 const ACCOUNT_ROOT_PROBE = `const path=require('path'),os=require('os');
 const agent=process.argv[1];
 const variable=agent==='claude'?'CLAUDE_CONFIG_DIR':'CODEX_HOME';
@@ -69,13 +68,7 @@ async function prepare(
   }
 ): Promise<PreparedNativeSandbox> {
   const policy = input.policy
-  const retryCleanup = cleanup.get(input.name)
-  if (retryCleanup) {
-    if (!(await retryCleanup())) {
-      throw new Error('Sandbox preparation cleanup is still unverifiable.')
-    }
-    cleanup.delete(input.name)
-  }
+  await retrySbxInspectionCleanup(input.name)
   const prior = await readSbxBinding(input.name)
   if (prior?.nativeAccountHome) {
     if (
@@ -128,46 +121,28 @@ async function prepare(
   if (created) {
     await stopSbxExecution({ name: guest.name, sandboxId: guest.id })
   }
-  const reservation = await reserveSbxNativeProvider(
+  const accountHome = await inspectStoppedSbx(
     { name: guest.name, sandboxId: guest.id, workspace: input.workspace },
-    input.provider
-  )
-  cleanup.set(input.name, reservation.confirmExecutionExit)
-  let accountHome: AgentSessionAccountHome | undefined
-  let inspectionError: Error | null = null
-  try {
-    const result = JSON.parse(
-      await client.run(
-        ['exec', '--', guest.name, 'node', '-e', ACCOUNT_ROOT_PROBE, input.provider],
-        10_000
+    input.provider,
+    async (): Promise<AgentSessionAccountHome> => {
+      const result = JSON.parse(
+        await client.run(
+          ['exec', '--', guest.name, 'node', '-e', ACCOUNT_ROOT_PROBE, input.provider],
+          10_000
+        )
       )
-    )
-    if (
-      result.variable !== variable ||
-      typeof result.path !== 'string' ||
-      !posix.isAbsolute(result.path) ||
-      result.path.length > 4096 ||
-      /[\0\r\n]/.test(result.path)
-    ) {
-      throw new Error('Guest account root could not be verified.')
+      if (
+        result.variable !== variable ||
+        typeof result.path !== 'string' ||
+        !posix.isAbsolute(result.path) ||
+        result.path.length > 4096 ||
+        /[\0\r\n]/.test(result.path)
+      ) {
+        throw new Error('Guest account root could not be verified.')
+      }
+      return { variable, path: result.path }
     }
-    accountHome = { variable, path: result.path }
-  } catch (cause) {
-    inspectionError =
-      cause instanceof Error ? cause : new Error('Guest account inspection failed.', { cause })
-  }
-  if (!(await reservation.confirmExecutionExit())) {
-    throw new Error('Guest account inspection ended without sandbox shutdown proof.', {
-      cause: inspectionError
-    })
-  }
-  cleanup.delete(input.name)
-  if (inspectionError) {
-    throw inspectionError
-  }
-  if (!accountHome) {
-    throw new Error('Guest account inspection returned no account root.')
-  }
+  )
   await saveSbxBinding({ ...binding, nativeAccountHome: accountHome })
   return { sandbox, accountHome }
 }
