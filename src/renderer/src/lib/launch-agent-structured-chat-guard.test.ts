@@ -37,6 +37,7 @@ const store = {
   activeRepoId: 'repo-1',
   activeWorktreeId: 'wt-1',
   settings: {
+    sbx: { enabled: false },
     agentCmdOverrides: {},
     agentDefaultArgs: {},
     agentDefaultEnv: {},
@@ -152,7 +153,40 @@ describe('structured chat adoption guard on the launch path', () => {
     ])
     mockToastError.mockReset()
     hostCapabilities = STRUCTURED_HOST_CAPABILITIES
+    store.settings.sbx.enabled = false
     store.settings.openAgentTabsInChatByDefault = true
+  })
+
+  it('opens a terminal view when a runtime cannot create native sandbox sessions', async () => {
+    store.settings.sbx.enabled = true
+    const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
+    launchAgentInNewTab({ agent: 'codex', worktreeId: 'wt-1' })
+    expect(mockCreateStructuredCodexSessionLaunchIntent).not.toHaveBeenCalled()
+    expect(mockCreateTab).toHaveBeenCalledWith(
+      'wt-1',
+      undefined,
+      undefined,
+      expect.objectContaining({ viewMode: 'terminal' })
+    )
+  })
+
+  it('opens a terminal view after a definitive native sandbox creation refusal', async () => {
+    store.settings.sbx.enabled = true
+    hostCapabilities = [...STRUCTURED_HOST_CAPABILITIES, 'agent-session.structured.sandbox.v1']
+    const { StructuredAgentSessionCreateRefusalError } =
+      await import('./launch-structured-agent-session')
+    mockLaunchStructuredCodexSession.mockRejectedValueOnce(
+      new StructuredAgentSessionCreateRefusalError('structured_agent_session_unsupported')
+    )
+    const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
+    launchAgentInNewTab({ agent: 'codex', worktreeId: 'wt-1' })
+    await vi.waitFor(() => expect(mockCreateTab).toHaveBeenCalledOnce())
+    expect(mockCreateTab).toHaveBeenCalledWith(
+      'wt-1',
+      undefined,
+      undefined,
+      expect.objectContaining({ viewMode: 'terminal' })
+    )
   })
 
   it('takes the structured path when the chat-default view is selected', async () => {

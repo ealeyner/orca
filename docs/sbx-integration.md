@@ -176,3 +176,13 @@ Older paired clients cannot create or attach sandbox native sessions. Before eve
 provider acquisition, record-scoped policy verifies the immutable guest/account
 binding and agent permission. Disabling global sandbox defaults never converts an
 existing guest session into a host session.
+
+Sandbox-backed terminal tabs open in terminal view even when chat is the default.
+This also applies to definitive native-creation fallbacks, so the composer does not
+appear without access to the guest transcript. Native structured chat still uses
+the normal chat view when supported.
+
+A live probe on the validated sbx build showed that `sbx cp` from a stopped guest
+starts that guest, just like `sbx exec`. Guest transcript collection must therefore
+hold execution ownership and prove shutdown after any stopped-guest inspection;
+copying alone is not a passive read. The disposable probe guest was removed.

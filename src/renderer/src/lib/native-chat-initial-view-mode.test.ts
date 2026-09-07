@@ -149,6 +149,19 @@ describe('decideInitialAgentTabViewMode', () => {
     ).toBeUndefined()
   })
 
+  it('opens sandbox terminal tabs in their usable terminal view', () => {
+    expect(
+      initialAgentTabViewModeProps(
+        {
+          experimentalNativeChat: true,
+          openAgentTabsInChatByDefault: true,
+          sbx: { enabled: true }
+        },
+        { agent: 'codex' }
+      )
+    ).toEqual({ viewMode: 'terminal' })
+  })
+
   it('returns tab creation props only when chat should be the initial mode', () => {
     expect(
       initialAgentTabViewModeProps(

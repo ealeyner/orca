@@ -50,7 +50,7 @@ export function decideInitialAgentTabViewMode(args: {
 
 export function initialAgentTabViewModeProps(
   settings:
-    | Pick<GlobalSettings, 'experimentalNativeChat' | 'openAgentTabsInChatByDefault'>
+    | Pick<GlobalSettings, 'experimentalNativeChat' | 'openAgentTabsInChatByDefault' | 'sbx'>
     | null
     | undefined,
   options: {
@@ -60,6 +60,10 @@ export function initialAgentTabViewModeProps(
     nativeChatTranscriptIsLocalReadable?: boolean
   } = {}
 ): { viewMode?: Tab['viewMode'] } {
+  // Guest terminal transcripts are not yet bridged to the legacy chat renderer.
+  if (settings?.sbx?.enabled) {
+    return { viewMode: 'terminal' }
+  }
   const viewMode = decideInitialAgentTabViewMode({
     experimentalNativeChat: settings?.experimentalNativeChat,
     openAgentTabsInChatByDefault: settings?.openAgentTabsInChatByDefault,

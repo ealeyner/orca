@@ -24,6 +24,9 @@ test('agent launch provisions a sandbox through native IPC and surfaces it in th
   await orcaPage.evaluate(async () => {
     await window.__store!.getState().updateSettings({
       sbx: { enabled: true },
+      experimentalNativeChat: true,
+      experimentalStructuredNativeChat: false,
+      openAgentTabsInChatByDefault: true,
       agentDefaultArgs: { claude: '' }
     })
   })
@@ -42,6 +45,7 @@ test('agent launch provisions a sandbox through native IPC and surfaces it in th
       }
     })
     .toBe('running')
+  await expect(orcaPage.getByPlaceholder('Send a message…', { exact: true })).not.toBeVisible()
   await focusActiveTerminalInput(orcaPage)
   await orcaPage.keyboard.press('Enter')
   await expect
